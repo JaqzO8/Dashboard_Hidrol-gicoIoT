@@ -1,6 +1,14 @@
-# PAE HydroWatch
+# PAE HydroWatch Perú
 
-Dashboard web para visualizar en una escala clara las lecturas del canal ThingSpeak **3420787** del proyecto hidrológico.
+Dashboard web multi-río para visualizar en una escala clara las lecturas IoT de estaciones hidrológicas del Perú. El canal ThingSpeak **3420787** corresponde al **Río Huallaga** y es la primera estación activa.
+
+## Producción
+
+El dashboard está publicado con acceso público y HTTPS en:
+
+**https://pae-hydrowatch-3420787.jaqz08.chatgpt.site**
+
+La operación, seguridad, costos, permanencia y recuperación están descritos en `docs/GUIA_DESPLIEGUE.md`.
 
 ## Ejecutar
 
@@ -18,6 +26,9 @@ El canal se consulta mediante la API de lectura de ThingSpeak. Actualmente admit
 
 ## Funciones
 
+- Selector y buscador nacional con 969 ríos nombrados en la cartografía oficial del IGN a escala 1:500 000.
+- Ficha de localidad y región hidrográfica para los principales ríos.
+- Configuración independiente de un canal ThingSpeak por río durante la sesión.
 - Actualización automática cada 20 segundos y actualización manual.
 - Ventanas de 50, 100, 250 o 500 lecturas.
 - Escalas separadas para nivel real, predicción y velocidad.
@@ -29,6 +40,14 @@ El canal se consulta mediante la API de lectura de ThingSpeak. Actualmente admit
 ## Supuesto funcional
 
 La interfaz interpreta `field7` con la escala: `0 Normal`, `1 Preventivo`, `2 Alerta`, `3 Crítico`. Debe validarse con el responsable del firmware/modelo antes de uso operativo.
+
+## Catálogo hidrográfico
+
+El archivo `data/peru-rivers.js` se genera desde la capa oficial **Ríos y Quebradas** de la Infraestructura de Datos Espaciales del Perú (IGN), filtrando los elementos nombrados como río. Se actualiza con `npm run sync:rivers`.
+
+Fuente: https://www.idep.gob.pe/geoportal/rest/services/DATOS_GEOESPACIALES/PER%C3%9A_500K/MapServer/23
+
+El catálogo identifica cobertura; no inventa telemetría. Los ríos sin canal muestran **Estación pendiente** hasta que se configure una fuente IoT propia.
 
 ## Pruebas
 

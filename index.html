@@ -21,13 +21,15 @@
     </a>
     <nav aria-label="Navegación principal">
       <a class="active" href="#resumen"><span>01</span>Resumen</a>
-      <a href="#tendencias"><span>02</span>Tendencias</a>
-      <a href="#ambiente"><span>03</span>Ambiente</a>
-      <a href="#registros"><span>04</span>Registros</a>
+      <a href="#red-nacional"><span>02</span>Red nacional</a>
+      <a href="#tendencias"><span>03</span>Tendencias</a>
+      <a href="#ambiente"><span>04</span>Ambiente</a>
+      <a href="#registros"><span>05</span>Registros</a>
     </nav>
     <div class="side-card">
       <span class="eyebrow">CANAL IOT</span>
-      <strong>#3420787</strong>
+      <strong id="sideRiver">Río Huallaga</strong>
+      <small id="sideChannel">Canal #3420787</small>
       <div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Conectando…</span></div>
     </div>
     <button class="settings-button" id="openSettings" type="button">⚙ Configurar conexión</button>
@@ -41,6 +43,9 @@
         <h1>Lectura clara. Decisiones a tiempo.</h1>
       </div>
       <div class="top-actions">
+        <label class="river-control">Río / estación
+          <select id="riverSelect" aria-label="Seleccionar río del Perú"></select>
+        </label>
         <label class="range-control">Ventana
           <select id="rangeSelect"><option value="50">50 lecturas</option><option value="100" selected>100 lecturas</option><option value="250">250 lecturas</option><option value="500">500 lecturas</option></select>
         </label>
@@ -56,7 +61,7 @@
         <p class="hero-kicker">SISTEMA HIDROLÓGICO INTELIGENTE</p>
         <h2>El agua cuenta una historia.<br><em>Ahora podemos verla.</em></h2>
         <p>Seguimiento continuo del nivel, condiciones ambientales y comportamiento predictivo para anticipar escenarios de riesgo.</p>
-        <div class="hero-meta"><span>📍 Estación PAE</span><span>◷ Muestreo IoT</span></div>
+        <div class="hero-meta"><span id="heroLocation">📍 Río Huallaga · Huánuco, San Martín y Loreto</span><span id="heroBasin">◷ Región hidrográfica Amazonas</span></div>
       </div>
       <div class="level-gauge">
         <div class="gauge-ring"><div><span id="levelValue">—</span><small>m</small><b>NIVEL ACTUAL</b></div></div>
@@ -85,16 +90,35 @@
       <article class="panel chart-card"><div class="card-head"><div><span class="eyebrow">EVENTOS</span><h3>Lluvia y estados</h3></div><span class="unit">por lectura</span></div><div id="eventsChart" class="chart"></div></article>
     </section>
 
+    <section id="red-nacional" class="panel river-network">
+      <div class="network-copy">
+        <span class="eyebrow">COBERTURA NACIONAL</span>
+        <h3>Ríos del Perú, una sola plataforma</h3>
+        <p>El catálogo integra los ríos nombrados en la cartografía oficial del IGN. Cada río puede asociarse a su propia estación y canal ThingSpeak; el Río Huallaga es la primera estación activa.</p>
+        <div class="network-stats">
+          <div><strong id="riverCount">—</strong><span>ríos catalogados</span></div>
+          <div><strong id="activeStationCount">1</strong><span>estación activa</span></div>
+          <div><strong>3</strong><span>regiones hidrográficas</span></div>
+        </div>
+      </div>
+      <div class="river-directory">
+        <div class="directory-head"><div><span class="eyebrow">DIRECTORIO</span><h4>Buscar una localidad hídrica</h4></div><span class="catalog-source">IGN · escala 1:500 000</span></div>
+        <label class="river-search"><span>⌕</span><input id="riverSearch" type="search" placeholder="Buscar Huallaga, Marañón, Rímac…" autocomplete="off"></label>
+        <div id="riverResults" class="river-results" aria-live="polite"></div>
+      </div>
+    </section>
+
     <section id="registros" class="panel records">
       <div class="card-head"><div><span class="eyebrow">TRAZABILIDAD</span><h3>Lecturas recientes</h3></div><button id="downloadCsv" class="secondary-button" type="button">↓ Exportar CSV</button></div>
       <div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Nivel</th><th>Lluvia</th><th>Temperatura</th><th>Humedad</th><th>Velocidad</th><th>Predicción</th><th>Estado</th></tr></thead><tbody id="recordsBody"><tr><td colspan="8" class="empty">Cargando lecturas…</td></tr></tbody></table></div>
     </section>
-    <footer>PAE HydroWatch <span>•</span> Datos proporcionados por ThingSpeak <span>•</span> <span id="entryCount">0 lecturas</span></footer>
+    <footer>PAE HydroWatch <span>•</span> Telemetría ThingSpeak <span>•</span> Catálogo hidrográfico IGN/ANA <span>•</span> <span id="entryCount">0 lecturas</span></footer>
   </main>
 
   <dialog id="settingsDialog">
     <form method="dialog" id="settingsForm">
       <div class="dialog-head"><div><span class="eyebrow">CONEXIÓN</span><h3>Configurar ThingSpeak</h3></div><button value="cancel" aria-label="Cerrar">×</button></div>
+      <div class="selected-river"><span>Estación seleccionada</span><strong id="settingsRiver">Río Huallaga</strong><small id="settingsLocality">Huánuco, San Martín y Loreto</small></div>
       <label>ID del canal<input id="channelInput" inputmode="numeric" value="3420787" required></label>
       <label>Read API Key <span>(opcional para canal público)</span><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Se conserva solo durante esta sesión"></label>
       <p class="privacy-note">La clave no se escribe en el código ni se guarda de forma permanente.</p>

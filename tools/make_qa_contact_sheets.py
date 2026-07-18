@@ -1,8 +1,11 @@
 from pathlib import Path
+import sys
+
 from PIL import Image, ImageDraw
 
-src = Path(r"D:\SistemaHidrológico\docs\_qa\final-pages-v2")
-out = Path(r"D:\SistemaHidrológico\docs\_qa\contact-sheets-v2")
+
+src = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("docs/_qa/final-pages-v2")
+out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("docs/_qa/contact-sheets-v2")
 out.mkdir(parents=True, exist_ok=True)
 pages = sorted(src.glob("page-*.png"))
 
@@ -22,14 +25,15 @@ for group_index in range(0, len(pages), 6):
         draw.text((x + 8, y + 4), name, fill="#08232d")
     sheet.save(out / f"pages-{group_index + 1:02d}-{group_index + len(group):02d}.png")
 
-# Footer strip audit at readable scale for all pages.
 rows = []
 for path in pages:
     img = Image.open(path).convert("RGB")
     crop = img.crop((0, int(img.height * .89), img.width, img.height))
     crop.thumbnail((612, 88), Image.Resampling.LANCZOS)
     rows.append((path.name, crop.copy()))
-footer_sheet = Image.new("RGB", (1224, 24 * 52), "white")
+
+footer_height = max(104, ((len(rows) + 1) // 2) * 104)
+footer_sheet = Image.new("RGB", (1224, footer_height), "white")
 draw = ImageDraw.Draw(footer_sheet)
 for i, (name, crop) in enumerate(rows):
     x = (i % 2) * 612

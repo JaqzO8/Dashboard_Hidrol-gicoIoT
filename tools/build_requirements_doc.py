@@ -9,7 +9,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.enum.style import WD_STYLE_TYPE
 
-ROOT = Path(r"D:\SistemaHidrológico")
+ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "Elicitacion_de_Requisitos_Dashboard_Hidrologico.docx"
 
 NAVY = "08232D"
@@ -29,7 +29,7 @@ sec = doc.sections[0]
 sec.page_width, sec.page_height = Inches(8.5), Inches(11)
 sec.top_margin = sec.bottom_margin = sec.left_margin = sec.right_margin = Inches(1)
 sec.header_distance = sec.footer_distance = Inches(.48)
-doc.core_properties.title = "Elicitación de Requisitos - Dashboard Hidrológico PAE HydroWatch"
+doc.core_properties.title = "Elicitación de Requisitos - Dashboard Hidrológico PAE HydroWatch Perú"
 doc.core_properties.subject = "Requisitos para visualización de datos IoT de ThingSpeak"
 doc.core_properties.author = "Equipo del Proyecto PAE"
 doc.core_properties.keywords = "ThingSpeak, IoT, hidrología, dashboard, requisitos"
@@ -172,7 +172,7 @@ update = OxmlElement("w:updateFields"); update.set(qn("w:val"),"true"); settings
 p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(42); r=p.add_run("PAE  /  HYDROWATCH"); set_run(r,size=11,color=TEAL,bold=True); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
 p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(58); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; r=p.add_run("DOCUMENTO DE ELICITACIÓN\nDE REQUISITOS"); set_run(r,size=28,color=NAVY,bold=True)
 p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; r=p.add_run("Dashboard de monitoreo hidrológico con datos IoT de ThingSpeak"); set_run(r,size=14,color=MID)
-p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(30); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; r=p.add_run("Canal 3420787  •  Proyecto hidrológico"); set_run(r,size=11,color=TEAL,bold=True)
+p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(30); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; r=p.add_run("Red multi-río  •  Estación inicial: Río Huallaga"); set_run(r,size=11,color=TEAL,bold=True)
 callout("Propósito", "Establecer una base común, verificable y trazable para construir y validar el dashboard que transforma la telemetría hidrológica en información operativa clara.")
 p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(80); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; r=p.add_run("Versión 1.0  |  18 de julio de 2026  |  Estado: Propuesto para validación"); set_run(r,size=9,color=MID)
 doc.add_page_break()
@@ -184,11 +184,11 @@ table(["Rol","Responsabilidad de validación","Nombre / firma","Fecha"], [["Prod
 callout("Nota de validación", "La correspondencia de field7 se interpreta provisionalmente como 0 Normal, 1 Preventivo, 2 Alerta y 3 Crítico. El responsable del firmware o del modelo debe confirmarla antes del uso operativo.", "FFF5DF", GOLD)
 
 heading("CONTENIDO",1)
-for item in ["1. Introducción y propósito","2. Alcance del proyecto","3. Contexto del producto y fuentes de datos","4. Stakeholders y mapa de poder/interés","5. Plan y técnicas de elicitación","6. Hallazgos, supuestos y restricciones","7. Requisitos funcionales","8. Requisitos no funcionales","9. Historias de usuario y criterios de aceptación","10. Casos de uso","11. Product Backlog y priorización","12. Matriz de trazabilidad","13. Plan de validación y aceptación","14. Riesgos","15. Glosario y anexos"]:
+for item in ["1. Introducción y propósito","2. Alcance del proyecto","3. Contexto del producto y fuentes de datos","4. Stakeholders y mapa de poder/interés","5. Plan y técnicas de elicitación","6. Hallazgos, supuestos y restricciones","7. Requisitos funcionales","8. Requisitos no funcionales","9. Historias de usuario y criterios de aceptación","10. Casos de uso","11. Product Backlog y priorización","12. Matriz de trazabilidad","13. Plan de validación y aceptación","14. Riesgos","15. Glosario y anexos","16. Despliegue, dominio y operación"]:
     bullet(item)
 
 heading("1. INTRODUCCIÓN Y PROPÓSITO",1)
-add_p("Este documento recopila, estructura y especifica los requisitos para el desarrollo de PAE HydroWatch, un dashboard web destinado a visualizar con mejor escala, contexto y trazabilidad los datos registrados por una estación hidrológica en ThingSpeak. La especificación sirve como guía para el equipo de desarrollo, el Product Owner, el responsable del dispositivo IoT y los usuarios que interpretarán la información.")
+add_p("Este documento recopila, estructura y especifica los requisitos para el desarrollo de PAE HydroWatch Perú, un dashboard web multi-río destinado a visualizar con mejor escala, contexto y trazabilidad los datos registrados por estaciones hidrológicas en ThingSpeak. El canal 3420787 se identifica como la estación inicial del Río Huallaga; los demás ríos del catálogo nacional permanecen sin telemetría hasta asociarles una estación propia.")
 add_p("La elicitación se basa en tres fuentes: la solicitud del patrocinador, la inspección del canal 3420787 y el patrón documental del proyecto PAE proporcionado como referencia. No se presentan entrevistas o encuestas como ejecutadas; sus resultados deben incorporarse en versiones posteriores cuando se realicen.")
 heading("1.1 Objetivos",2)
 for text in ["Representar cada variable con una escala que evite perder detalle por valores atípicos o unidades incompatibles.","Proporcionar una lectura inmediata del estado actual y conservar la posibilidad de analizar tendencias.","Consultar ThingSpeak sin incorporar credenciales sensibles en el código fuente.","Definir criterios de aceptación medibles y una trazabilidad completa entre necesidades, requisitos y pruebas.","Ofrecer una experiencia atractiva, responsive y comprensible para usuarios técnicos y no técnicos."]: bullet(text)
@@ -197,7 +197,7 @@ table(["Prefijo","Uso","Ejemplo"],[["NEC","Necesidad del stakeholder","NEC-01"],
 
 heading("2. ALCANCE DEL PROYECTO",1)
 heading("2.1 Alcance incluido",2)
-for text in ["Dashboard web de solo lectura para el canal ThingSpeak configurable.","Indicadores de nivel, lluvia, temperatura, humedad, velocidad, predicción y estado.","Gráficos históricos con ventanas de 50, 100, 250 y 500 lecturas.","Actualización automática y manual.","Tabla de lecturas recientes y exportación CSV.","Configuración de Read API Key en memoria de sesión para canales privados.","Diseño responsive para escritorio, tableta y móvil.","Mensajes de conectividad, ausencia de datos y errores de la API."]: bullet(text)
+for text in ["Dashboard web de solo lectura con selección de río y canal ThingSpeak por estación.","Catálogo nacional de ríos basado en la cartografía oficial IGN 1:500 000.","Identificación del canal 3420787 como telemetría del Río Huallaga.","Indicadores de nivel, lluvia, temperatura, humedad, velocidad, predicción y estado.","Gráficos históricos con ventanas de 50, 100, 250 y 500 lecturas.","Actualización automática y manual.","Tabla de lecturas recientes y exportación CSV con río, localidad y región hidrográfica.","Configuración de Read API Key en memoria de sesión para canales privados.","Diseño responsive para escritorio, tableta y móvil.","Mensajes de conectividad, estación pendiente, ausencia de datos y errores de la API."]: bullet(text)
 heading("2.2 Fuera de alcance",2)
 for text in ["Escritura de datos hacia ThingSpeak o control remoto del sensor.","Modificación del firmware del dispositivo IoT.","Generación o rotación automática de API Keys.","Notificaciones por SMS, correo o mensajería en la primera versión.","Autenticación multiusuario, administración de roles o persistencia en una base de datos propia.","Certificación de predicciones o decisiones automáticas de emergencia."]: bullet(text)
 callout("Límite operativo", "El dashboard apoya la interpretación, pero no reemplaza protocolos oficiales de emergencia ni la inspección física de la estación.")
@@ -294,6 +294,19 @@ add_p("Fuente: consulta de solo lectura al endpoint público del canal 3420787 d
 heading("15.3 Preguntas abiertas",2)
 for text in ["¿Cuáles son las unidades oficiales de Nivel, Lluvia, Velocidad y Nivel Predicción?","¿Qué fórmula produce field5 y field6?","¿Cuál es el catálogo definitivo y la acción asociada a cada valor de field7?","¿Qué umbrales convierten un valor en preventivo, alerta o crítico?","¿El canal continuará público en producción?","¿Cuál es la zona horaria que debe mostrarse?","¿Se requieren alertas externas o historial de auditoría en una segunda versión?","¿Cuál es la política de retención y respaldo de los datos?"]: bullet(text)
 callout("Próximo paso", "Realizar una sesión de validación de 45 minutos con Product Owner, responsable IoT y usuario operativo; resolver AS-01 a AS-06 y actualizar el estado de los requisitos de Propuesto a Aprobado.")
+
+heading("16. DESPLIEGUE, DOMINIO Y OPERACIÓN",1)
+add_p("PAE HydroWatch fue publicado el 18 de julio de 2026 en OpenAI Sites con acceso público y HTTPS. La dirección de producción es https://pae-hydrowatch-3420787.jaqz08.chatgpt.site. El subdominio no tiene una expiración semanal programada y permanece disponible mientras el propietario mantenga el proyecto activo; por tanto, satisface la permanencia mínima solicitada de una semana.")
+heading("16.1 Costo y sostenibilidad",2)
+table(["Concepto","Costo","Observación"],[["Subdominio de producción","S/ 0","Incluido por la plataforma"],["Certificado HTTPS","S/ 0","Administrado automáticamente"],["Servidor propio","S/ 0","No requerido"],["Mantenimiento de la primera semana","S/ 0","Solo comprobación operativa"]],[3200,1400,4760],8.5)
+add_p("La alternativa es rentable para demostración académica y operación de bajo tráfico porque evita compra de dominio, servidor y certificado. Un dominio institucional propio podrá incorporarse posteriormente si se necesita identidad de marca.")
+heading("16.2 Arquitectura y seguridad",2)
+for text in ["El visitante recibe la interfaz estática desde Sites y el navegador consulta la API HTTPS de ThingSpeak.","El canal público no requiere credenciales incorporadas en el código ni en el hosting.","Una Read API Key opcional se guarda únicamente en sessionStorage y desaparece al cerrar la pestaña.","La política CSP limita las conexiones a ThingSpeak y a los recursos visuales declarados.","El dashboard es de solo lectura: no modifica ni elimina registros IoT."]: bullet(text)
+heading("16.3 Evidencia del despliegue",2)
+table(["Elemento","Resultado"],[["URL","https://pae-hydrowatch-3420787.jaqz08.chatgpt.site"],["Acceso","Público, sin inicio de sesión"],["Protocolo","HTTPS"],["Estado de publicación","Producción publicada"],["Fuente IoT","ThingSpeak, canal 3420787"],["Actualización","Automática cada 20 segundos y manual"]],[2600,6760],8.5)
+heading("16.4 Operación durante la primera semana",2)
+for text in ["Confirmar que la URL responde mediante HTTPS al inicio y al final de la semana.","Comparar la lectura más reciente con el canal 3420787 y verificar que la marca de tiempo avance.","Probar actualización manual, selector de registros, vista móvil y exportación CSV.","No archivar ni eliminar el proyecto de Sites y mantener el canal ThingSpeak accesible.","Si una publicación introduce una falla, volver a publicar la última versión aprobada."]: bullet(text)
+callout("Criterio de permanencia", "No existe tarea de caducidad o eliminación configurada. La URL continuará activa más allá de siete días mientras el proyecto no sea archivado o eliminado y la plataforma mantenga el servicio.")
 
 # Final formatting pass
 for section in doc.sections: setup_header_footer(section)

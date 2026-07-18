@@ -1,4 +1,38 @@
+import { PERU_RIVERS } from "./data/peru-rivers.js";
+
 const DEFAULT_CHANNEL = "3420787";
+const DEFAULT_RIVER = "Río Huallaga";
+const RIVER_DETAILS = {
+  "Río Huallaga": { region: "Amazonas", locality: "Huánuco, San Martín y Loreto", channel: DEFAULT_CHANNEL },
+  "Río Amazonas": { region: "Amazonas", locality: "Loreto" },
+  "Río Marañón": { region: "Amazonas", locality: "Huánuco, Áncash, Cajamarca, Amazonas y Loreto" },
+  "Río Ucayali": { region: "Amazonas", locality: "Ucayali y Loreto" },
+  "Río Apurímac": { region: "Amazonas", locality: "Arequipa, Cusco, Apurímac y Ayacucho" },
+  "Río Urubamba": { region: "Amazonas", locality: "Cusco y Ucayali" },
+  "Río Mantaro": { region: "Amazonas", locality: "Pasco, Junín, Huancavelica y Ayacucho" },
+  "Río Madre de Dios": { region: "Amazonas", locality: "Madre de Dios" },
+  "Río Napo": { region: "Amazonas", locality: "Loreto" },
+  "Río Putumayo": { region: "Amazonas", locality: "Loreto" },
+  "Río Purús": { region: "Amazonas", locality: "Ucayali" },
+  "Río Tumbes": { region: "Pacífico", locality: "Tumbes" },
+  "Río Chira": { region: "Pacífico", locality: "Piura" },
+  "Río Piura": { region: "Pacífico", locality: "Piura" },
+  "Río Jequetepeque": { region: "Pacífico", locality: "Cajamarca y La Libertad" },
+  "Río Chicama": { region: "Pacífico", locality: "Cajamarca y La Libertad" },
+  "Río Santa": { region: "Pacífico", locality: "Áncash y La Libertad" },
+  "Río Rímac": { region: "Pacífico", locality: "Lima" },
+  "Río Chillón": { region: "Pacífico", locality: "Lima" },
+  "Río Cañete": { region: "Pacífico", locality: "Lima" },
+  "Río Ica": { region: "Pacífico", locality: "Huancavelica e Ica" },
+  "Río Ocoña": { region: "Pacífico", locality: "Ayacucho y Arequipa" },
+  "Río Camaná": { region: "Pacífico", locality: "Arequipa" },
+  "Río Caplina": { region: "Pacífico", locality: "Tacna" },
+  "Río Ramis": { region: "Titicaca", locality: "Puno" },
+  "Río Coata": { region: "Titicaca", locality: "Puno" },
+  "Río Ilave": { region: "Titicaca", locality: "Puno" },
+  "Río Huancané": { region: "Titicaca", locality: "Puno" },
+  "Río Suches": { region: "Titicaca", locality: "Puno y Bolivia" }
+};
 const STATUS = {
   0: { label: "Normal", description: "Condiciones estables", className: "status-0", color: "#6be6a4" },
   1: { label: "Preventivo", description: "Requiere observación", className: "status-1", color: "#e8d164" },
@@ -9,6 +43,10 @@ const $ = (id) => document.getElementById(id);
 let feeds = [];
 let charts = [];
 let refreshTimer;
+
+export function riverMeta(name) {
+  return { name, region: "Por validar", locality: "Localidad por asignar", channel: "", ...(RIVER_DETAILS[name] || {}) };
+}
 
 export function normalizeFeed(feed) {
   const number = (value) => value === null || value === "" || Number.isNaN(Number(value)) ? null : Number(value);
@@ -27,13 +65,25 @@ export function stats(values) {
 }
 const fmt = (value, digits = 2) => Number.isFinite(value) ? value.toLocaleString("es-PE", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "—";
 const fmtDate = (date, compact = false) => new Intl.DateTimeFormat("es-PE", compact ? { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" } : { dateStyle: "short", timeStyle: "medium" }).format(date);
-const currentConfig = () => ({ channel: sessionStorage.getItem("tsChannel") || DEFAULT_CHANNEL, apiKey: sessionStorage.getItem("tsReadKey") || "", results: Number($("rangeSelect")?.value || 100) });
+const selectedRiverName = () => sessionStorage.getItem("selectedRiver") || DEFAULT_RIVER;
+const customStations = () => { try { return JSON.parse(sessionStorage.getItem("tsRiverStations") || "{}"); } catch { return {}; } };
+const currentConfig = () => {
+  const river = selectedRiverName();
+  const base = riverMeta(river);
+  const custom = customStations()[river] || {};
+  return { river, ...base, channel: custom.channel || base.channel, apiKey: custom.apiKey || "", results: Number($("rangeSelect")?.value || 100) };
+};
 
 async function loadData(showFeedback = false) {
   const button = $("refreshButton");
   button?.classList.add("loading");
   try {
-    const { channel, apiKey, results } = currentConfig();
+    const { channel, apiKey, results, river } = currentConfig();
+    if (!channel) {
+      renderRiverContext(river);
+      renderUnavailableRiver();
+      return;
+    }
     const response = await fetch(buildFeedUrl(channel, results, apiKey), { cache: "no-store" });
     if (!response.ok) throw new Error(`ThingSpeak respondió ${response.status}`);
     const payload = await response.json();
@@ -48,8 +98,72 @@ async function loadData(showFeedback = false) {
   } finally { button?.classList.remove("loading"); }
 }
 
+function renderRiverContext(name) {
+  const meta = riverMeta(name);
+  const configuredChannel = currentConfig().channel;
+  $("sideRiver").textContent = name;
+  $("sideChannel").textContent = configuredChannel ? `Canal #${configuredChannel}` : "Canal pendiente";
+  $("heroLocation").textContent = `📍 ${name} · ${meta.locality}`;
+  $("heroBasin").textContent = `◷ Región hidrográfica ${meta.region}`;
+  $("settingsRiver").textContent = name;
+  $("settingsLocality").textContent = `${meta.locality} · ${meta.region}`;
+  if ($("riverSelect").value !== name) $("riverSelect").value = name;
+}
+
+function renderUnavailableRiver() {
+  feeds = [];
+  setConnection(false, "Estación pendiente");
+  $("levelValue").textContent = "—";
+  $("levelTrend").textContent = "Configure un canal para activar la telemetría";
+  $("systemStatus").textContent = "Sin estación";
+  $("systemStatus").style.color = "#88a8b3";
+  $("statusDescription").textContent = "Río incluido en el catálogo nacional";
+  ["kpiLevel", "kpiRain", "kpiTemp", "kpiHum", "kpiSpeed", "avgLevel", "maxLevel"].forEach(id => $(id).textContent = "—");
+  $("kpiLevelDelta").textContent = "Telemetría pendiente";
+  $("kpiRainState").textContent = "Sin estación asociada";
+  $("insightTitle").textContent = "Este río está listo para incorporarse.";
+  $("insightText").textContent = "Asocie el canal ThingSpeak de la estación para visualizar sus lecturas con la misma escala y trazabilidad.";
+  $("lastUpdated").textContent = "—";
+  $("entryCount").textContent = "0 lecturas";
+  $("recordsBody").innerHTML = '<tr><td colspan="8" class="empty">Este río todavía no tiene una estación ThingSpeak configurada.</td></tr>';
+  charts.forEach(instance => instance.clear());
+}
+
+function selectRiver(name, load = true) {
+  sessionStorage.setItem("selectedRiver", name);
+  renderRiverContext(name);
+  renderRiverDirectory($("riverSearch").value);
+  if (load) loadData(true);
+}
+
+function renderRiverDirectory(query = "") {
+  const normalized = query.trim().toLocaleLowerCase("es-PE");
+  const selected = selectedRiverName();
+  const priority = [DEFAULT_RIVER, "Río Amazonas", "Río Marañón", "Río Ucayali", "Río Rímac"];
+  const matches = PERU_RIVERS
+    .filter(name => !normalized || name.toLocaleLowerCase("es-PE").includes(normalized))
+    .sort((a, b) => (priority.indexOf(a) === -1 ? 99 : priority.indexOf(a)) - (priority.indexOf(b) === -1 ? 99 : priority.indexOf(b)) || a.localeCompare(b, "es-PE"))
+    .slice(0, 12);
+  $("riverResults").innerHTML = matches.length ? matches.map(name => {
+    const meta = riverMeta(name);
+    const hasStation = Boolean(meta.channel || customStations()[name]?.channel);
+    return `<button class="river-result ${name === selected ? "active" : ""}" type="button" data-river="${name.replaceAll('"', '&quot;')}"><span><strong>${name}</strong><small>${meta.locality} · ${meta.region}</small></span><span class="station-state ${hasStation ? "live" : ""}">${hasStation ? "EN VIVO" : "PENDIENTE"}</span></button>`;
+  }).join("") : '<div class="empty">No se encontraron ríos con ese nombre.</div>';
+  $("riverResults").querySelectorAll("[data-river]").forEach(button => button.addEventListener("click", () => selectRiver(button.dataset.river)));
+}
+
+function initializeRiverCatalog() {
+  $("riverCount").textContent = PERU_RIVERS.length.toLocaleString("es-PE");
+  $("activeStationCount").textContent = String(1 + Object.entries(customStations()).filter(([name, station]) => name !== DEFAULT_RIVER && station?.channel).length);
+  $("riverSelect").innerHTML = PERU_RIVERS.map(name => `<option value="${name.replaceAll('"', '&quot;')}">${name}${name === DEFAULT_RIVER ? " · EN VIVO" : ""}</option>`).join("");
+  $("riverSelect").value = selectedRiverName();
+  renderRiverContext(selectedRiverName());
+  renderRiverDirectory();
+}
+
 function setConnection(online, label) { $("connectionDot").className = online ? "online" : "offline"; $("connectionLabel").textContent = label; }
 function render(channel) {
+  renderRiverContext(selectedRiverName());
   const last = feeds.at(-1), previous = feeds.at(-2), state = STATUS[last.status] || { label: `Código ${last.status ?? "—"}`, description: "Estado sin catalogar", color: "#88a8b3" };
   const delta = previous && Number.isFinite(last.level) && Number.isFinite(previous.level) ? last.level - previous.level : null;
   $("levelValue").textContent = fmt(last.level);
@@ -77,13 +191,16 @@ function renderCharts() {
 }
 function renderTable() { $("recordsBody").innerHTML = [...feeds].reverse().slice(0, 20).map(row => { const state = STATUS[row.status] || { label: `Código ${row.status}`, className: "" }; return `<tr><td>${fmtDate(row.date)}</td><td>${fmt(row.level)} m</td><td>${row.rain > 0 ? fmt(row.rain) : "No"}</td><td>${fmt(row.temp,1)} °C</td><td>${fmt(row.hum,1)} %</td><td>${fmt(row.speed)}</td><td>${fmt(row.prediction)}</td><td><span class="status-chip ${state.className}">${state.label}</span></td></tr>`; }).join(""); }
 function toast(message, error = false) { const el = $("toast"); el.textContent = message; el.style.borderColor = error ? "rgba(255,107,113,.4)" : ""; el.classList.add("show"); clearTimeout(el._timer); el._timer = setTimeout(() => el.classList.remove("show"), 3200); }
-function exportCsv() { const header = ["fecha_hora","entry_id","nivel","lluvia","temperatura","humedad","velocidad","prediccion","estado"]; const rows = feeds.map(f => [f.date.toISOString(),f.entryId,f.level,f.rain,f.temp,f.hum,f.speed,f.prediction,f.status]); const csv = [header,...rows].map(row => row.map(v => `"${v ?? ""}"`).join(",")).join("\n"); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=`thingspeak-${currentConfig().channel}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href); }
+function exportCsv() { const header = ["rio","localidad","region_hidrografica","fecha_hora","entry_id","nivel","lluvia","temperatura","humedad","velocidad","prediccion","estado"]; const config=currentConfig(); const rows = feeds.map(f => [config.river,config.locality,config.region,f.date.toISOString(),f.entryId,f.level,f.rain,f.temp,f.hum,f.speed,f.prediction,f.status]); const csv = [header,...rows].map(row => row.map(v => `"${v ?? ""}"`).join(",")).join("\n"); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=`${config.river.toLocaleLowerCase("es-PE").replaceAll(" ","-")}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href); }
 
 if (typeof document !== "undefined") {
+  initializeRiverCatalog();
   $("refreshButton").addEventListener("click", () => loadData(true)); $("rangeSelect").addEventListener("change", () => loadData()); $("downloadCsv").addEventListener("click", exportCsv);
-  const showSettings = () => { $("channelInput").value=currentConfig().channel; $("apiKeyInput").value=currentConfig().apiKey; $("settingsDialog").showModal(); };
+  $("riverSelect").addEventListener("change", event => selectRiver(event.target.value));
+  $("riverSearch").addEventListener("input", event => renderRiverDirectory(event.target.value));
+  const showSettings = () => { renderRiverContext(selectedRiverName()); $("channelInput").value=currentConfig().channel; $("apiKeyInput").value=currentConfig().apiKey; $("settingsDialog").showModal(); };
   $("openSettings").addEventListener("click", showSettings); $("mobileSettings").addEventListener("click", showSettings);
-  $("settingsForm").addEventListener("submit", event => { event.preventDefault(); sessionStorage.setItem("tsChannel", $("channelInput").value.trim()); const key=$("apiKeyInput").value.trim(); key ? sessionStorage.setItem("tsReadKey",key) : sessionStorage.removeItem("tsReadKey"); $("settingsDialog").close(); loadData(true); });
+  $("settingsForm").addEventListener("submit", event => { event.preventDefault(); const river=selectedRiverName(); const stations=customStations(); stations[river]={channel:$("channelInput").value.trim(),apiKey:$("apiKeyInput").value.trim()}; sessionStorage.setItem("tsRiverStations",JSON.stringify(stations)); $("settingsDialog").close(); initializeRiverCatalog(); loadData(true); });
   window.addEventListener("resize", () => charts.forEach(c => c.resize()));
   document.querySelectorAll(".sidebar nav a").forEach(a => a.addEventListener("click", () => { document.querySelectorAll(".sidebar nav a").forEach(n=>n.classList.remove("active")); a.classList.add("active"); }));
   loadData(); refreshTimer = setInterval(loadData, 20000);

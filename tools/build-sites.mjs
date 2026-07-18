@@ -8,11 +8,14 @@ const dist = resolve(root, "dist");
 await rm(dist, { recursive: true, force: true });
 await mkdir(resolve(dist, "server"), { recursive: true });
 
-const [sourceHtml, css, js] = await Promise.all([
+const [sourceHtml, css, sourceJs, riverCatalog] = await Promise.all([
   readFile(resolve(root, "index.html"), "utf8"),
   readFile(resolve(root, "styles.css"), "utf8"),
   readFile(resolve(root, "app.js"), "utf8"),
+  readFile(resolve(root, "data", "peru-rivers.js"), "utf8"),
 ]);
+
+const js = `${riverCatalog}\n${sourceJs.replace('import { PERU_RIVERS } from "./data/peru-rivers.js";', "")}`;
 
 const html = sourceHtml
   .replace(/\s*<link rel="stylesheet" href="styles\.css">/, `\n  <style>${css}</style>`)

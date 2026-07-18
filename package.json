@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.mjs",
     "build": "node tools/build-sites.mjs",
+    "sync:rivers": "node tools/sync-peru-rivers.mjs",
     "test": "node --test tests/*.test.mjs"
   }
 }
