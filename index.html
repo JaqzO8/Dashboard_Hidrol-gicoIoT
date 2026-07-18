@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#071b24">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2308232d'/%3E%3Cpath d='M32 10C24 23 16 31 16 41a16 16 0 0 0 32 0c0-10-8-18-16-31Z' fill='none' stroke='%2339e1d0' stroke-width='4'/%3E%3C/svg%3E">
+  <title>PAE HydroWatch | Monitoreo hidrológico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <aside class="sidebar">
+    <a class="brand" href="#resumen" aria-label="Ir al resumen">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 5C18 15 10 23 10 31a14 14 0 0 0 28 0C38 23 30 15 24 5Z"/><path d="M16 32c4 3 12 4 19-2"/></svg></span>
+      <span><strong>PAE</strong><small>HydroWatch</small></span>
+    </a>
+    <nav aria-label="Navegación principal">
+      <a class="active" href="#resumen"><span>01</span>Resumen</a>
+      <a href="#tendencias"><span>02</span>Tendencias</a>
+      <a href="#ambiente"><span>03</span>Ambiente</a>
+      <a href="#registros"><span>04</span>Registros</a>
+    </nav>
+    <div class="side-card">
+      <span class="eyebrow">CANAL IOT</span>
+      <strong>#3420787</strong>
+      <div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Conectando…</span></div>
+    </div>
+    <button class="settings-button" id="openSettings" type="button">⚙ Configurar conexión</button>
+    <p class="side-foot">Proyecto hidrológico<br><span>ThingSpeak · Tiempo real</span></p>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">CENTRO DE MONITOREO</span>
+        <h1>Lectura clara. Decisiones a tiempo.</h1>
+      </div>
+      <div class="top-actions">
+        <label class="range-control">Ventana
+          <select id="rangeSelect"><option value="50">50 lecturas</option><option value="100" selected>100 lecturas</option><option value="250">250 lecturas</option><option value="500">500 lecturas</option></select>
+        </label>
+        <button id="refreshButton" class="icon-button" type="button" aria-label="Actualizar datos">↻</button>
+        <button id="mobileSettings" class="icon-button mobile-settings" type="button" aria-label="Configurar conexión">⚙</button>
+        <div class="updated"><span>Última actualización</span><strong id="lastUpdated">—</strong></div>
+      </div>
+    </header>
+
+    <section id="resumen" class="hero panel">
+      <div class="hero-copy">
+        <div class="live-pill"><span></span> TELEMETRÍA EN VIVO</div>
+        <p class="hero-kicker">SISTEMA HIDROLÓGICO INTELIGENTE</p>
+        <h2>El agua cuenta una historia.<br><em>Ahora podemos verla.</em></h2>
+        <p>Seguimiento continuo del nivel, condiciones ambientales y comportamiento predictivo para anticipar escenarios de riesgo.</p>
+        <div class="hero-meta"><span>📍 Estación PAE</span><span>◷ Muestreo IoT</span></div>
+      </div>
+      <div class="level-gauge">
+        <div class="gauge-ring"><div><span id="levelValue">—</span><small>m</small><b>NIVEL ACTUAL</b></div></div>
+        <p id="levelTrend">Esperando lectura…</p>
+      </div>
+      <div class="hero-status"><span>ESTADO DEL SISTEMA</span><strong id="systemStatus">Sin datos</strong><small id="statusDescription">Conectando con ThingSpeak</small></div>
+    </section>
+
+    <section class="kpi-grid" aria-label="Indicadores actuales">
+      <article class="kpi"><div class="kpi-icon cyan">≈</div><div><span>Nivel</span><strong id="kpiLevel">—</strong><small id="kpiLevelDelta">Sin comparación</small></div></article>
+      <article class="kpi"><div class="kpi-icon blue">☂</div><div><span>Lluvia</span><strong id="kpiRain">—</strong><small id="kpiRainState">Estado del sensor</small></div></article>
+      <article class="kpi"><div class="kpi-icon orange">☼</div><div><span>Temperatura</span><strong id="kpiTemp">—</strong><small>Ambiente</small></div></article>
+      <article class="kpi"><div class="kpi-icon violet">◌</div><div><span>Humedad</span><strong id="kpiHum">—</strong><small>Humedad relativa</small></div></article>
+      <article class="kpi"><div class="kpi-icon green">➜</div><div><span>Velocidad</span><strong id="kpiSpeed">—</strong><small>Variación del nivel</small></div></article>
+    </section>
+
+    <section id="tendencias" class="chart-grid">
+      <article class="panel chart-card wide"><div class="card-head"><div><span class="eyebrow">COMPORTAMIENTO</span><h3>Nivel observado</h3></div><span class="unit">metros</span></div><div id="levelChart" class="chart"></div></article>
+      <article class="panel insight-card"><span class="eyebrow">LECTURA CLAVE</span><h3 id="insightTitle">Analizando la serie…</h3><p id="insightText">La interpretación se actualizará con la última ventana de lecturas.</p><div class="insight-metric"><span>Promedio</span><strong id="avgLevel">—</strong></div><div class="insight-metric"><span>Máximo</span><strong id="maxLevel">—</strong></div></article>
+      <article class="panel chart-card"><div class="card-head"><div><span class="eyebrow">MODELO</span><h3>Nivel de predicción</h3></div><span class="unit">escala independiente</span></div><div id="predictionChart" class="chart"></div></article>
+      <article class="panel chart-card"><div class="card-head"><div><span class="eyebrow">DINÁMICA</span><h3>Velocidad</h3></div><span class="unit">variación</span></div><div id="speedChart" class="chart"></div></article>
+    </section>
+
+    <section id="ambiente" class="chart-grid two">
+      <article class="panel chart-card"><div class="card-head"><div><span class="eyebrow">ENTORNO</span><h3>Temperatura y humedad</h3></div><span class="unit">doble escala</span></div><div id="climateChart" class="chart"></div></article>
+      <article class="panel chart-card"><div class="card-head"><div><span class="eyebrow">EVENTOS</span><h3>Lluvia y estados</h3></div><span class="unit">por lectura</span></div><div id="eventsChart" class="chart"></div></article>
+    </section>
+
+    <section id="registros" class="panel records">
+      <div class="card-head"><div><span class="eyebrow">TRAZABILIDAD</span><h3>Lecturas recientes</h3></div><button id="downloadCsv" class="secondary-button" type="button">↓ Exportar CSV</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Nivel</th><th>Lluvia</th><th>Temperatura</th><th>Humedad</th><th>Velocidad</th><th>Predicción</th><th>Estado</th></tr></thead><tbody id="recordsBody"><tr><td colspan="8" class="empty">Cargando lecturas…</td></tr></tbody></table></div>
+    </section>
+    <footer>PAE HydroWatch <span>•</span> Datos proporcionados por ThingSpeak <span>•</span> <span id="entryCount">0 lecturas</span></footer>
+  </main>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" id="settingsForm">
+      <div class="dialog-head"><div><span class="eyebrow">CONEXIÓN</span><h3>Configurar ThingSpeak</h3></div><button value="cancel" aria-label="Cerrar">×</button></div>
+      <label>ID del canal<input id="channelInput" inputmode="numeric" value="3420787" required></label>
+      <label>Read API Key <span>(opcional para canal público)</span><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Se conserva solo durante esta sesión"></label>
+      <p class="privacy-note">La clave no se escribe en el código ni se guarda de forma permanente.</p>
+      <div class="dialog-actions"><button value="cancel" class="secondary-button">Cancelar</button><button id="saveSettings" value="default" class="primary-button">Conectar</button></div>
+    </form>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
