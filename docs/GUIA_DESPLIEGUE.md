@@ -6,15 +6,17 @@ Publicar el dashboard hidrológico en un subdominio HTTPS gratuito y estable dur
 
 ## Plataforma seleccionada
 
-Se utiliza **OpenAI Sites** porque proporciona una URL de producción administrada, HTTPS automático y despliegues versionados. El subdominio no tiene una fecha de vencimiento semanal: permanece disponible mientras el propietario mantenga el sitio activo.
+La publicación principal utiliza **GitHub Pages** con GitHub Actions, HTTPS automático y despliegue continuo desde la rama `main`. OpenAI Sites se conserva como publicación alternativa de respaldo.
 
 ### Dirección de producción
 
-- URL pública: **https://pae-hydrowatch-3420787.jaqz08.chatgpt.site**
+- URL principal: **https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/**
+- Repositorio: **https://github.com/JaqzO8/Dashboard_Hidrol-gicoIoT**
+- URL de respaldo: **https://pae-hydrowatch-3420787.jaqz08.chatgpt.site**
 - Fecha de publicación: **18 de julio de 2026**.
 - Acceso: **público**, sin inicio de sesión.
 - Transporte: **HTTPS** administrado por la plataforma.
-- Proyecto de Sites: `appgprj_6a5c035f7bf08191b9f54655a0f8bafa`.
+- Flujo de publicación: `.github/workflows/pages.yml`.
 
 ### Costo
 

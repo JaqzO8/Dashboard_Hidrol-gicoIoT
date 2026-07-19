@@ -4,9 +4,13 @@ Dashboard web multi-río para visualizar en una escala clara las lecturas IoT de
 
 ## Producción
 
-El dashboard está publicado con acceso público y HTTPS en:
+El dashboard se despliega automáticamente desde `main` mediante GitHub Actions y GitHub Pages:
 
-**https://pae-hydrowatch-3420787.jaqz08.chatgpt.site**
+**https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/**
+
+Repositorio público: **https://github.com/JaqzO8/Dashboard_Hidrol-gicoIoT**
+
+Despliegue alternativo de respaldo: **https://pae-hydrowatch-3420787.jaqz08.chatgpt.site**
 
 La operación, seguridad, costos, permanencia y recuperación están descritos en `docs/GUIA_DESPLIEGUE.md`.
 
