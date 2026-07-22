@@ -1,4 +1,4 @@
-# PAE HydroWatch Perú
+# HydroWatch Perú
 
 Dashboard web multi-río para visualizar en una escala clara las lecturas IoT de estaciones hidrológicas del Perú. El canal ThingSpeak **3420787** corresponde al **Río Huallaga** y es la primera estación activa.
 
@@ -10,7 +10,7 @@ El dashboard se despliega automáticamente desde `main` mediante GitHub Actions 
 
 Repositorio público: **https://github.com/JaqzO8/Dashboard_Hidrol-gicoIoT**
 
-Despliegue alternativo de respaldo: **https://pae-hydrowatch-3420787.jaqz08.chatgpt.site**
+El despliegue principal y público se mantiene en GitHub Pages.
 
 La operación, seguridad, costos, permanencia y recuperación están descritos en `docs/GUIA_DESPLIEGUE.md`.
 
@@ -33,7 +33,9 @@ El canal se consulta mediante la API de lectura de ThingSpeak. Actualmente admit
 - Selector y buscador nacional con 969 ríos nombrados en la cartografía oficial del IGN a escala 1:500 000.
 - Ficha de localidad y región hidrográfica para los principales ríos.
 - Configuración independiente de un canal ThingSpeak por río durante la sesión.
-- Actualización automática cada 20 segundos y actualización manual.
+- Carga inicial de la ventana seleccionada y sincronización incremental cada 15 segundos.
+- Pausa inteligente cuando la pestaña está inactiva, reconexión automática y retroceso progresivo ante fallos.
+- Compilación optimizada con Vite y módulos separados para interfaz, actualización en vivo y acceso a ThingSpeak.
 - Ventanas de 50, 100, 250 o 500 lecturas.
 - Escalas separadas para nivel real, predicción y velocidad.
 - Doble escala para temperatura y humedad.

@@ -1,4 +1,8 @@
 import { PERU_RIVERS } from "./data/peru-rivers.js";
+import { LiveFeedController, LIVE_INTERVAL_MS } from "./src/core/live-feed.js";
+import { buildFeedUrl, buildLatestFeedUrl } from "./src/services/thingspeak.js";
+
+export { buildFeedUrl, buildLatestFeedUrl };
 
 const DEFAULT_CHANNEL = "3420787";
 const DEFAULT_RIVER = "Río Huallaga";
@@ -42,7 +46,7 @@ const STATUS = {
 const $ = (id) => document.getElementById(id);
 let feeds = [];
 let charts = [];
-let refreshTimer;
+let liveFeed;
 
 export function riverMeta(name) {
   return { name, region: "Por validar", locality: "Localidad por asignar", channel: "", ...(RIVER_DETAILS[name] || {}) };
@@ -52,16 +56,17 @@ export function normalizeFeed(feed) {
   const number = (value) => value === null || value === "" || Number.isNaN(Number(value)) ? null : Number(value);
   return { date: new Date(feed.created_at), entryId: Number(feed.entry_id), level: number(feed.field1), rain: number(feed.field2), temp: number(feed.field3), hum: number(feed.field4), speed: number(feed.field5), prediction: number(feed.field6), status: number(feed.field7) };
 }
-export function buildFeedUrl(channel, results, apiKey = "") {
-  const url = new URL(`https://api.thingspeak.com/channels/${encodeURIComponent(channel)}/feeds.json`);
-  url.searchParams.set("results", String(results));
-  if (apiKey.trim()) url.searchParams.set("api_key", apiKey.trim());
-  return url.toString();
-}
 export function stats(values) {
   const clean = values.filter(Number.isFinite);
   if (!clean.length) return { avg: null, min: null, max: null };
   return { avg: clean.reduce((a, b) => a + b, 0) / clean.length, min: Math.min(...clean), max: Math.max(...clean) };
+}
+export function mergeLatestFeeds(rows, latest, limit = 100) {
+  if (!Number.isFinite(latest?.entryId) || Number.isNaN(latest?.date?.getTime?.())) return rows;
+  if (rows.at(-1)?.entryId === latest.entryId) return rows;
+  return [...rows.filter((row) => row.entryId !== latest.entryId), latest]
+    .sort((a, b) => a.entryId - b.entryId)
+    .slice(-limit);
 }
 const fmt = (value, digits = 2) => Number.isFinite(value) ? value.toLocaleString("es-PE", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "—";
 const fmtDate = (date, compact = false) => new Intl.DateTimeFormat("es-PE", compact ? { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" } : { dateStyle: "short", timeStyle: "medium" }).format(date);
@@ -75,27 +80,14 @@ const currentConfig = () => {
 };
 
 async function loadData(showFeedback = false) {
-  const button = $("refreshButton");
-  button?.classList.add("loading");
-  try {
-    const { channel, apiKey, results, river } = currentConfig();
-    if (!channel) {
-      renderRiverContext(river);
-      renderUnavailableRiver();
-      return;
-    }
-    const response = await fetch(buildFeedUrl(channel, results, apiKey), { cache: "no-store" });
-    if (!response.ok) throw new Error(`ThingSpeak respondió ${response.status}`);
-    const payload = await response.json();
-    feeds = payload.feeds.map(normalizeFeed).filter((row) => !Number.isNaN(row.date.getTime()));
-    if (!feeds.length) throw new Error("El canal no contiene lecturas en la ventana seleccionada");
-    render(payload.channel);
-    setConnection(true, apiKey ? "Privado · conectado" : "Público · conectado");
-    if (showFeedback) toast("Datos actualizados correctamente");
-  } catch (error) {
-    setConnection(false, "Sin conexión");
-    toast(error.message || "No fue posible consultar ThingSpeak", true);
-  } finally { button?.classList.remove("loading"); }
+  const { channel, river } = currentConfig();
+  if (!channel) {
+    liveFeed?.stop();
+    renderRiverContext(river);
+    renderUnavailableRiver();
+    return;
+  }
+  await liveFeed.refresh({ notify: showFeedback });
 }
 
 function renderRiverContext(name) {
@@ -162,7 +154,7 @@ function initializeRiverCatalog() {
 }
 
 function setConnection(online, label) { $("connectionDot").className = online ? "online" : "offline"; $("connectionLabel").textContent = label; }
-function render(channel) {
+function render() {
   renderRiverContext(selectedRiverName());
   const last = feeds.at(-1), previous = feeds.at(-2), state = STATUS[last.status] || { label: `Código ${last.status ?? "—"}`, description: "Estado sin catalogar", color: "#88a8b3" };
   const delta = previous && Number.isFinite(last.level) && Number.isFinite(previous.level) ? last.level - previous.level : null;
@@ -193,7 +185,48 @@ function renderTable() { $("recordsBody").innerHTML = [...feeds].reverse().slice
 function toast(message, error = false) { const el = $("toast"); el.textContent = message; el.style.borderColor = error ? "rgba(255,107,113,.4)" : ""; el.classList.add("show"); clearTimeout(el._timer); el._timer = setTimeout(() => el.classList.remove("show"), 3200); }
 function exportCsv() { const header = ["rio","localidad","region_hidrografica","fecha_hora","entry_id","nivel","lluvia","temperatura","humedad","velocidad","prediccion","estado"]; const config=currentConfig(); const rows = feeds.map(f => [config.river,config.locality,config.region,f.date.toISOString(),f.entryId,f.level,f.rain,f.temp,f.hum,f.speed,f.prediction,f.status]); const csv = [header,...rows].map(row => row.map(v => `"${v ?? ""}"`).join(",")).join("\n"); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=`${config.river.toLocaleLowerCase("es-PE").replaceAll(" ","-")}-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href); }
 
+function updateLiveState(state, delay = LIVE_INTERVAL_MS) {
+  const button = $("refreshButton");
+  button?.classList.toggle("loading", state === "loading");
+  const status = $("refreshStatus");
+  if (!status) return;
+  if (state === "loading") status.textContent = "Sincronizando con ThingSpeak…";
+  else if (state === "paused") status.textContent = "Actualización en pausa · pestaña inactiva";
+  else if (state === "offline") status.textContent = `Reintento automático · ${Math.round(delay / 1000)} s`;
+  else status.textContent = `Sincronización automática · ${Math.round(delay / 1000)} s`;
+}
+
+function createLiveFeed() {
+  return new LiveFeedController({
+    getConfig: currentConfig,
+    onSnapshot(payload, { notify }) {
+      feeds = (payload.feeds || []).map(normalizeFeed).filter((row) => !Number.isNaN(row.date.getTime()));
+      if (!feeds.length) throw new Error("El canal no contiene lecturas en la ventana seleccionada");
+      render();
+      const { apiKey } = currentConfig();
+      setConnection(true, apiKey ? "Privado · en vivo" : "Público · en vivo");
+      if (notify) toast("Datos sincronizados con ThingSpeak");
+    },
+    onLatest(raw) {
+      const latest = normalizeFeed(raw);
+      if (!Number.isFinite(latest.entryId) || Number.isNaN(latest.date.getTime())) return;
+      if (feeds.at(-1)?.entryId === latest.entryId) return;
+      const limit = currentConfig().results;
+      feeds = mergeLatestFeeds(feeds, latest, limit);
+      render();
+      const { apiKey } = currentConfig();
+      setConnection(true, apiKey ? "Privado · en vivo" : "Público · en vivo");
+    },
+    onState: updateLiveState,
+    onError(error, { silent = false } = {}) {
+      setConnection(false, navigator.onLine ? "Reconectando…" : "Sin internet");
+      if (!silent) toast(error.message || "No fue posible consultar ThingSpeak", true);
+    },
+  });
+}
+
 if (typeof document !== "undefined") {
+  liveFeed = createLiveFeed();
   initializeRiverCatalog();
   $("refreshButton").addEventListener("click", () => loadData(true)); $("rangeSelect").addEventListener("change", () => loadData()); $("downloadCsv").addEventListener("click", exportCsv);
   $("riverSelect").addEventListener("change", event => selectRiver(event.target.value));
@@ -202,6 +235,8 @@ if (typeof document !== "undefined") {
   $("openSettings").addEventListener("click", showSettings); $("mobileSettings").addEventListener("click", showSettings);
   $("settingsForm").addEventListener("submit", event => { event.preventDefault(); const river=selectedRiverName(); const stations=customStations(); stations[river]={channel:$("channelInput").value.trim(),apiKey:$("apiKeyInput").value.trim()}; sessionStorage.setItem("tsRiverStations",JSON.stringify(stations)); $("settingsDialog").close(); initializeRiverCatalog(); loadData(true); });
   window.addEventListener("resize", () => charts.forEach(c => c.resize()));
+  window.addEventListener("online", () => loadData());
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) loadData(); });
   document.querySelectorAll(".sidebar nav a").forEach(a => a.addEventListener("click", () => { document.querySelectorAll(".sidebar nav a").forEach(n=>n.classList.remove("active")); a.classList.add("active"); }));
-  loadData(); refreshTimer = setInterval(loadData, 20000);
+  loadData();
 }

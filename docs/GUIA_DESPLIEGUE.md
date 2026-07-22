@@ -1,4 +1,4 @@
-# Guía de despliegue — PAE HydroWatch
+# Guía de despliegue — HydroWatch Perú
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ La publicación principal utiliza **GitHub Pages** con GitHub Actions, HTTPS aut
 
 - URL principal: **https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/**
 - Repositorio: **https://github.com/JaqzO8/Dashboard_Hidrol-gicoIoT**
-- URL de respaldo: **https://pae-hydrowatch-3420787.jaqz08.chatgpt.site**
+- Arquitectura: aplicación modular compilada y optimizada con Vite.
 - Fecha de publicación: **18 de julio de 2026**.
 - Acceso: **público**, sin inicio de sesión.
 - Transporte: **HTTPS** administrado por la plataforma.
@@ -59,7 +59,7 @@ La orden `npm run build` genera un Worker de producción en `dist/server/index.j
 
 ## Comprobación posterior
 
-- Abrir `https://pae-hydrowatch-3420787.jaqz08.chatgpt.site` desde una ventana privada.
+- Abrir `https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/` desde una ventana privada.
 - Confirmar que se muestra “Público · conectado”.
 - Verificar que nivel, temperatura, humedad y registros coinciden con ThingSpeak.
 - Cambiar la ventana a 50 y 250 lecturas.
@@ -85,7 +85,7 @@ No se configuró expiración ni tarea de eliminación. El despliegue cumple la p
 
 ## Recuperación
 
-Si ThingSpeak queda temporalmente fuera de servicio, el dashboard conserva su interfaz y vuelve a consultar automáticamente cada 20 segundos. Si el despliegue se modifica incorrectamente, se debe volver a publicar la última versión aprobada.
+Si ThingSpeak queda temporalmente fuera de servicio, el dashboard conserva su interfaz, aplica reintentos progresivos y restablece la sincronización incremental de 15 segundos cuando vuelve la conexión. Si el despliegue se modifica incorrectamente, se debe volver a publicar la última versión aprobada.
 
 ## Responsables sugeridos
 

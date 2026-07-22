@@ -29,15 +29,14 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Run tests
         run: npm test
 
-      - name: Prepare static site
-        run: |
-          mkdir -p _site/data
-          cp index.html styles.css app.js _site/
-          cp data/peru-rivers.js _site/data/
-          touch _site/.nojekyll
+      - name: Build optimized application
+        run: npm run build:github
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

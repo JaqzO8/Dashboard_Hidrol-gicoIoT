@@ -4,8 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#071b24">
+  <meta name="description" content="Monitoreo hidrológico en tiempo real del Río Huallaga con datos de ThingSpeak.">
+  <meta property="og:title" content="HydroWatch Perú">
+  <meta property="og:description" content="Monitoreo hidrológico en tiempo real · Río Huallaga · ThingSpeak">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/">
+  <meta property="og:image" content="https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/og.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2308232d'/%3E%3Cpath d='M32 10C24 23 16 31 16 41a16 16 0 0 0 32 0c0-10-8-18-16-31Z' fill='none' stroke='%2339e1d0' stroke-width='4'/%3E%3C/svg%3E">
-  <title>PAE HydroWatch | Monitoreo hidrológico</title>
+  <title>HydroWatch | Monitoreo hidrológico</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -17,7 +24,7 @@
   <aside class="sidebar">
     <a class="brand" href="#resumen" aria-label="Ir al resumen">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 5C18 15 10 23 10 31a14 14 0 0 0 28 0C38 23 30 15 24 5Z"/><path d="M16 32c4 3 12 4 19-2"/></svg></span>
-      <span><strong>PAE</strong><small>HydroWatch</small></span>
+      <span><strong>HydroWatch</strong><small>Prevención hidrológica</small></span>
     </a>
     <nav aria-label="Navegación principal">
       <a class="active" href="#resumen"><span>01</span>Resumen</a>
@@ -51,7 +58,7 @@
         </label>
         <button id="refreshButton" class="icon-button" type="button" aria-label="Actualizar datos">↻</button>
         <button id="mobileSettings" class="icon-button mobile-settings" type="button" aria-label="Configurar conexión">⚙</button>
-        <div class="updated"><span>Última actualización</span><strong id="lastUpdated">—</strong></div>
+        <div class="updated"><span>Última lectura</span><strong id="lastUpdated">—</strong><small id="refreshStatus">Sincronización automática · 15 s</small></div>
       </div>
     </header>
 
@@ -112,7 +119,7 @@
       <div class="card-head"><div><span class="eyebrow">TRAZABILIDAD</span><h3>Lecturas recientes</h3></div><button id="downloadCsv" class="secondary-button" type="button">↓ Exportar CSV</button></div>
       <div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Nivel</th><th>Lluvia</th><th>Temperatura</th><th>Humedad</th><th>Velocidad</th><th>Predicción</th><th>Estado</th></tr></thead><tbody id="recordsBody"><tr><td colspan="8" class="empty">Cargando lecturas…</td></tr></tbody></table></div>
     </section>
-    <footer>PAE HydroWatch <span>•</span> Telemetría ThingSpeak <span>•</span> Catálogo hidrográfico IGN/ANA <span>•</span> <span id="entryCount">0 lecturas</span></footer>
+    <footer>HydroWatch Perú <span>•</span> Telemetría ThingSpeak <span>•</span> Catálogo hidrográfico IGN/ANA <span>•</span> <span id="entryCount">0 lecturas</span></footer>
   </main>
 
   <dialog id="settingsDialog">

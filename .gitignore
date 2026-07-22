@@ -1,4 +1,8 @@
 node_modules/
+_site/
+.sites-client/
+__pycache__/
+*.pyc
 .env
 .env.*
 docs/*
