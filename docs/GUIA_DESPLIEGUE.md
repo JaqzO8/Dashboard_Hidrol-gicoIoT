@@ -85,7 +85,7 @@ No se configuró expiración ni tarea de eliminación. El despliegue cumple la p
 
 ## Recuperación
 
-Si ThingSpeak queda temporalmente fuera de servicio, el dashboard conserva su interfaz, aplica reintentos progresivos y restablece la sincronización incremental de 15 segundos cuando vuelve la conexión. Si el despliegue se modifica incorrectamente, se debe volver a publicar la última versión aprobada.
+Si ThingSpeak queda temporalmente fuera de servicio, el dashboard conserva su interfaz, aplica reintentos progresivos y restablece la consulta incremental de 1 segundo cuando vuelve la conexión. La aparición de valores nuevos depende de la frecuencia con la que el sensor publica en ThingSpeak. Si el despliegue se modifica incorrectamente, se debe volver a publicar la última versión aprobada.
 
 ## Responsables sugeridos
 

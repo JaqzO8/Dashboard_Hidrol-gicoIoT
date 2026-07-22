@@ -1,6 +1,6 @@
 import { fetchLatest, fetchSnapshot } from "../services/thingspeak.js";
 
-export const LIVE_INTERVAL_MS = 15000;
+export const LIVE_INTERVAL_MS = 1000;
 
 export class LiveFeedController {
   constructor({ getConfig, onSnapshot, onLatest, onState, onError, interval = LIVE_INTERVAL_MS }) {

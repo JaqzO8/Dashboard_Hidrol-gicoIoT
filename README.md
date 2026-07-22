@@ -33,7 +33,7 @@ El canal se consulta mediante la API de lectura de ThingSpeak. Actualmente admit
 - Selector y buscador nacional con 969 ríos nombrados en la cartografía oficial del IGN a escala 1:500 000.
 - Ficha de localidad y región hidrográfica para los principales ríos.
 - Configuración independiente de un canal ThingSpeak por río durante la sesión.
-- Carga inicial de la ventana seleccionada y sincronización incremental cada 15 segundos.
+- Carga inicial de la ventana seleccionada y consulta incremental cada segundo. La lectura visible cambia cuando el sensor publica una nueva entrada en ThingSpeak.
 - Pausa inteligente cuando la pestaña está inactiva, reconexión automática y retroceso progresivo ante fallos.
 - Compilación optimizada con Vite y módulos separados para interfaz, actualización en vivo y acceso a ThingSpeak.
 - Ventanas de 50, 100, 250 o 500 lecturas.
