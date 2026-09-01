@@ -311,28 +311,28 @@ function render() {
 function baseChartOptions() {
   return {
     animationDuration: 650,
-    textStyle: { fontFamily: "Public Sans", color: "#64748B" },
+    textStyle: { fontFamily: "Inter, system-ui, sans-serif", color: "#64748B" },
     grid: { left: 45, right: 20, top: 34, bottom: 40 },
     tooltip: {
       trigger: "axis",
       backgroundColor: "#FFFFFF",
       borderColor: "#CBD5E1",
       extraCssText: "box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);",
-      textStyle: { color: "#0F172A", fontSize: 11, fontFamily: "Public Sans" }
+      textStyle: { color: "#0F172A", fontSize: 11, fontFamily: "Inter, system-ui, sans-serif" }
     },
     xAxis: {
       type: "category",
       boundaryGap: false,
       data: feeds.map((f) => fmtDate(f.date, true)),
       axisLine: { lineStyle: { color: "#CBD5E1" } },
-      axisLabel: { color: "#64748B", fontSize: 9, hideOverlap: true, fontFamily: "Public Sans" },
+      axisLabel: { color: "#64748B", fontSize: 9, hideOverlap: true, fontFamily: "Inter, system-ui, sans-serif" },
       axisTick: { show: false }
     },
     yAxis: {
       type: "value",
       scale: true,
       splitLine: { lineStyle: { color: "#E2E8F0" } },
-      axisLabel: { color: "#64748B", fontSize: 9, fontFamily: "Public Sans" }
+      axisLabel: { color: "#64748B", fontSize: 9, fontFamily: "Inter, system-ui, sans-serif" }
     }
   };
 }

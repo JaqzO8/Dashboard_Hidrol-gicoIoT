@@ -31,7 +31,7 @@ body {
   margin: 0;
   background-color: var(--bg-page);
   color: var(--text-main);
-  font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
@@ -60,7 +60,7 @@ body {
   align-items: center;
   color: #FFFFFF;
   text-decoration: none;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .brand-mark {
@@ -110,7 +110,7 @@ body {
 }
 
 .sidebar nav a span {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   margin-right: 10px;
   color: #64748B;
@@ -141,7 +141,7 @@ body {
 .side-label {
   display: block;
   color: #94A3B8;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 11px;
   letter-spacing: 0.08em;
   font-weight: 600;
@@ -150,7 +150,7 @@ body {
 .side-card strong {
   display: block;
   margin: 4px 0 2px;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 20px;
   color: #FFFFFF;
 }
@@ -231,7 +231,7 @@ main {
 .section-tag {
   display: block;
   color: var(--primary);
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -239,7 +239,7 @@ main {
 }
 
 .topbar h1 {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 32px;
   font-weight: 700;
   color: var(--text-main);
@@ -337,7 +337,7 @@ main {
   gap: 8px;
   padding: 5px 12px;
   border-radius: 16px;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -369,7 +369,7 @@ main {
 }
 
 .hero-kicker {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -378,7 +378,7 @@ main {
 }
 
 .hero h2 {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: clamp(30px, 3.2vw, 42px);
   font-weight: 700;
   line-height: 1.1;
@@ -427,7 +427,7 @@ main {
 }
 
 .limnimeter-header span {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
@@ -435,7 +435,7 @@ main {
 }
 
 .limnimeter-header strong {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 34px;
   color: var(--text-main);
 }
@@ -494,7 +494,7 @@ main {
   transform: translateY(50%);
   background: var(--text-main);
   color: #FFFFFF;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   font-weight: 700;
   padding: 2px 8px;
@@ -519,7 +519,7 @@ main {
 
 .hero-status span {
   color: var(--text-muted);
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 11px;
   letter-spacing: 0.08em;
   font-weight: 600;
@@ -527,7 +527,7 @@ main {
 
 .hero-status strong {
   display: block;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 28px;
   margin: 4px 0;
 }
@@ -584,7 +584,7 @@ main {
 
 .kpi strong {
   display: block;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 26px;
   font-weight: 700;
   color: var(--text-main);
@@ -621,7 +621,7 @@ main {
 }
 
 .card-head h3, .insight-card h3, .records h3 {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: var(--text-main);
@@ -665,7 +665,7 @@ main {
 }
 
 .insight-metric strong {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-main);
@@ -681,7 +681,7 @@ main {
 }
 
 .network-copy h3 {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 26px;
   font-weight: 700;
   margin: 4px 0;
@@ -709,7 +709,7 @@ main {
 
 .network-stats strong {
   display: block;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 24px;
   color: var(--primary);
 }
@@ -733,7 +733,7 @@ main {
 }
 
 .directory-head h4 {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 18px;
   margin: 2px 0;
 }
@@ -799,7 +799,7 @@ main {
 }
 
 .river-result strong {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   color: var(--text-main);
 }
@@ -811,7 +811,7 @@ main {
 }
 
 .station-state {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
@@ -874,7 +874,7 @@ th {
   text-align: left;
   color: var(--text-secondary);
   background: #F1F5F9;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   font-weight: 700;
   padding: 10px 14px;
@@ -897,7 +897,7 @@ tbody tr:hover {
   display: inline-flex;
   padding: 3px 8px;
   border-radius: 4px;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   font-weight: 700;
 }
@@ -951,7 +951,7 @@ dialog form {
 }
 
 .dialog-head h3 {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 22px;
   font-weight: 700;
   margin: 2px 0 0;
