@@ -38,10 +38,10 @@ const RIVER_DETAILS = {
   "Río Suches": { region: "Titicaca", locality: "Puno y Bolivia" }
 };
 const STATUS = {
-  0: { label: "Normal", description: "Condiciones estables", className: "status-0", color: "#6be6a4" },
-  1: { label: "Preventivo", description: "Requiere observación", className: "status-1", color: "#e8d164" },
-  2: { label: "Alerta", description: "Variación relevante", className: "status-2", color: "#ffad5b" },
-  3: { label: "Crítico", description: "Atención inmediata", className: "status-3", color: "#ff6b71" }
+  0: { label: "Normal", description: "Condiciones estables", className: "status-0", color: "#16A34A" },
+  1: { label: "Preventivo", description: "Requiere observación", className: "status-1", color: "#D97706" },
+  2: { label: "Alerta", description: "Variación relevante", className: "status-2", color: "#EA580C" },
+  3: { label: "Crítico", description: "Atención inmediata", className: "status-3", color: "#DC2626" }
 };
 const $ = (id) => document.getElementById(id);
 let feeds = [];
@@ -311,27 +311,28 @@ function render() {
 function baseChartOptions() {
   return {
     animationDuration: 650,
-    textStyle: { fontFamily: "Public Sans", color: "#8CA2B0" },
-    grid: { left: 50, right: 20, top: 34, bottom: 40 },
+    textStyle: { fontFamily: "Public Sans", color: "#64748B" },
+    grid: { left: 45, right: 20, top: 34, bottom: 40 },
     tooltip: {
       trigger: "axis",
-      backgroundColor: "#0B1B24",
-      borderColor: "#2E7DA3",
-      textStyle: { color: "#EAF1F4", fontSize: 11, fontFamily: "Public Sans" }
+      backgroundColor: "#FFFFFF",
+      borderColor: "#CBD5E1",
+      extraCssText: "box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);",
+      textStyle: { color: "#0F172A", fontSize: 11, fontFamily: "Public Sans" }
     },
     xAxis: {
       type: "category",
       boundaryGap: false,
       data: feeds.map((f) => fmtDate(f.date, true)),
-      axisLine: { lineStyle: { color: "rgba(46,125,163,.25)" } },
-      axisLabel: { color: "#8CA2B0", fontSize: 9, hideOverlap: true, fontFamily: "Public Sans" },
+      axisLine: { lineStyle: { color: "#CBD5E1" } },
+      axisLabel: { color: "#64748B", fontSize: 9, hideOverlap: true, fontFamily: "Public Sans" },
       axisTick: { show: false }
     },
     yAxis: {
       type: "value",
       scale: true,
-      splitLine: { lineStyle: { color: "rgba(46,125,163,.1)" } },
-      axisLabel: { color: "#8CA2B0", fontSize: 9, fontFamily: "Public Sans" }
+      splitLine: { lineStyle: { color: "#E2E8F0" } },
+      axisLabel: { color: "#64748B", fontSize: 9, fontFamily: "Public Sans" }
     }
   };
 }
@@ -355,7 +356,7 @@ function lineSeries(name, data, color, area = true) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: `${color}44` },
+              { offset: 0, color: `${color}33` },
               { offset: 1, color: `${color}00` }
             ]
           }
@@ -376,19 +377,19 @@ function chart(id, options) {
 }
 
 function renderCharts() {
-  chart("levelChart", { ...baseChartOptions(), series: [lineSeries("Nivel", feeds.map((f) => f.level), "#2E7DA3")] });
-  chart("predictionChart", { ...baseChartOptions(), series: [lineSeries("Predicción", feeds.map((f) => f.prediction), "#C79A56")] });
-  chart("speedChart", { ...baseChartOptions(), series: [lineSeries("Velocidad", feeds.map((f) => f.speed), "#4C9A6A")] });
+  chart("levelChart", { ...baseChartOptions(), series: [lineSeries("Nivel", feeds.map((f) => f.level), "#0284C7")] });
+  chart("predictionChart", { ...baseChartOptions(), series: [lineSeries("Predicción", feeds.map((f) => f.prediction), "#D97706")] });
+  chart("speedChart", { ...baseChartOptions(), series: [lineSeries("Velocidad", feeds.map((f) => f.speed), "#16A34A")] });
 
   const climate = baseChartOptions();
-  climate.legend = { data: ["Temperatura", "Humedad"], textStyle: { color: "#8CA2B0", fontSize: 10 }, top: 4 };
+  climate.legend = { data: ["Temperatura", "Humedad"], textStyle: { color: "#64748B", fontSize: 10 }, top: 4 };
   climate.yAxis = [
-    { ...climate.yAxis, name: "°C", nameTextStyle: { color: "#8CA2B0" } },
-    { ...climate.yAxis, name: "%", nameTextStyle: { color: "#8CA2B0" } }
+    { ...climate.yAxis, name: "°C", nameTextStyle: { color: "#64748B" } },
+    { ...climate.yAxis, name: "%", nameTextStyle: { color: "#64748B" } }
   ];
   climate.series = [
-    lineSeries("Temperatura", feeds.map((f) => f.temp), "#D97A2E", false),
-    { ...lineSeries("Humedad", feeds.map((f) => f.hum), "#2E7DA3", false), yAxisIndex: 1 }
+    lineSeries("Temperatura", feeds.map((f) => f.temp), "#EA580C", false),
+    { ...lineSeries("Humedad", feeds.map((f) => f.hum), "#0284C7", false), yAxisIndex: 1 }
   ];
   chart("climateChart", climate);
 
@@ -399,8 +400,8 @@ function renderCharts() {
     min: 0,
     max: 3,
     interval: 1,
-    axisLabel: { color: "#8CA2B0", fontSize: 9, formatter: (value) => STATUS[value]?.label || value },
-    splitLine: { lineStyle: { color: "rgba(46,125,163,.1)" } }
+    axisLabel: { color: "#64748B", fontSize: 9, formatter: (value) => STATUS[value]?.label || value },
+    splitLine: { lineStyle: { color: "#E2E8F0" } }
   };
   events.series = [
     {
@@ -443,7 +444,7 @@ function toast(message, error = false) {
   const el = $("toast");
   if (!el) return;
   el.textContent = message;
-  el.style.borderColor = error ? "rgba(196,70,58,.6)" : "";
+  el.style.borderColor = error ? "rgba(220,38,38,.4)" : "";
   el.classList.add("show");
   clearTimeout(el._timer);
   el._timer = setTimeout(() => el.classList.remove("show"), 3200);
@@ -476,8 +477,6 @@ function exportCsv() {
 }
 
 function updateLiveState(state, delay = LIVE_INTERVAL_MS) {
-  const button = $("refreshButton");
-  if (button) button.classList.toggle("loading", state === "loading");
   const status = $("refreshStatus");
   if (!status) return;
 
@@ -519,7 +518,6 @@ function createLiveFeed() {
 if (typeof document !== "undefined") {
   liveFeed = createLiveFeed();
   initializeRiverCatalog();
-  if ($("refreshButton")) $("refreshButton").addEventListener("click", () => loadData(true));
   if ($("rangeSelect")) $("rangeSelect").addEventListener("change", () => loadData());
   if ($("downloadCsv")) $("downloadCsv").addEventListener("click", exportCsv);
   if ($("riverSelect")) $("riverSelect").addEventListener("change", (event) => selectRiver(event.target.value));
@@ -560,4 +558,5 @@ if (typeof document !== "undefined") {
   );
   loadData();
 }
+
 

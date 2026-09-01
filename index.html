@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0B1B24">
+  <meta name="theme-color" content="#F8FAFC">
   <meta name="description" content="Dashboard hidrológico de prevención en tiempo real para ríos del Perú con datos IoT de ThingSpeak.">
   <meta property="og:title" content="HydroWatch Perú">
   <meta property="og:description" content="Monitoreo e integración hidrológica en tiempo real · ThingSpeak · Cartografía IGN">
@@ -11,7 +11,7 @@
   <meta property="og:url" content="https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/">
   <meta property="og:image" content="https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/og.png">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230B1B24'/%3E%3Cpath d='M32 10C24 23 16 31 16 41a16 16 0 0 0 32 0c0-10-8-18-16-31Z' fill='none' stroke='%232E7DA3' stroke-width='4'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230284C7'/%3E%3Cpath d='M32 10C24 23 16 31 16 41a16 16 0 0 0 32 0c0-10-8-18-16-31Z' fill='none' stroke='%23FFFFFF' stroke-width='4'/%3E%3C/svg%3E">
   <title>HydroWatch | Monitoreo Hidrológico de Prevención</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,8 +20,6 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
   <aside class="sidebar">
     <a class="brand" href="#resumen" aria-label="Ir al resumen">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 5C18 15 10 23 10 31a14 14 0 0 0 28 0C38 23 30 15 24 5Z"/><path d="M16 32c4 3 12 4 19-2"/></svg></span>
@@ -62,7 +60,6 @@
             <option value="500">500 lecturas</option>
           </select>
         </label>
-        <button id="refreshButton" class="action-btn primary-action" type="button" aria-label="Actualizar ahora">Actualizar ahora</button>
         <button id="mobileSettings" class="icon-button mobile-settings" type="button" aria-label="Configurar conexión">⚙</button>
         <div class="updated">
           <span>Hora oficial America/Lima (UTC-5)</span>
