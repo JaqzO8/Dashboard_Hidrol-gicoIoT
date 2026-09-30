@@ -1,6 +1,6 @@
-# HydroWatch Perú
+# YakuAlert
 
-Dashboard web multi-río para visualizar en una escala clara las lecturas IoT de estaciones hidrológicas del Perú. El canal ThingSpeak **3420787** corresponde al **Río Huallaga** y es la primera estación activa.
+Plataforma web multi-río para visualizar las lecturas IoT de estaciones hidrológicas del Perú y emitir alertas preventivas. El canal ThingSpeak **3420787** corresponde al **Río Huallaga** y es la primera estación activa.
 
 ## Producción
 
@@ -41,11 +41,13 @@ El canal se consulta mediante la API de lectura de ThingSpeak. Actualmente admit
 - Doble escala para temperatura y humedad.
 - Estado actual, indicadores clave y resumen interpretativo.
 - Tabla de trazabilidad y exportación CSV.
+- Navegación multipágina: resumen, red nacional, tendencias, ambiente y registros tienen URLs independientes.
+- Alertas visuales, sonoras y mediante notificaciones del navegador cuando el estado llega a amarillo alto o rojo.
 - Diseño adaptable a escritorio, tableta y móvil.
 
 ## Supuesto funcional
 
-La interfaz interpreta `field7` con la escala: `0 Normal`, `1 Preventivo`, `2 Alerta`, `3 Crítico`. Debe validarse con el responsable del firmware/modelo antes de uso operativo.
+La interfaz interpreta `field7` con la escala: `0 Normal`, `1 Preventivo`, `2 Amarillo alto`, `3 Crítico`. También activa amarillo alto desde 3,5 m y rojo desde 5,0 m. Estos umbrales deben validarse con el responsable del firmware/modelo antes de uso operativo.
 
 ## Catálogo hidrográfico
 

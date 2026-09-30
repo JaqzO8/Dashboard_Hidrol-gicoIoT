@@ -1,4 +1,4 @@
-# Guía de despliegue — HydroWatch Perú
+# Guía de despliegue — YakuAlert
 
 ## Objetivo
 
@@ -30,11 +30,18 @@ La opción es rentable para demostraciones, validación académica y operación 
 ## Arquitectura publicada
 
 1. El visitante abre la URL HTTPS del sitio.
-2. Sites entrega la interfaz estática desde su infraestructura administrada.
+2. GitHub Pages entrega la aplicación multipágina compilada desde la rama `main`.
 3. El usuario selecciona un río del catálogo hidrográfico nacional.
 4. Si el río tiene una estación asociada, el navegador consulta directamente su canal mediante la API HTTPS de ThingSpeak.
 5. Los datos se transforman y grafican localmente en el navegador.
 6. No existe base de datos, servidor de aplicación ni API Key incorporada al despliegue.
+
+### Alertas operativas
+
+- El resumen muestra una alerta persistente cuando `field7` alcanza 2 o 3, o cuando el nivel llega a 3,5 m o 5,0 m respectivamente.
+- Tras la autorización del usuario, el navegador emite una notificación del sistema y una señal sonora por cada lectura nueva en amarillo alto o rojo.
+- La autorización y el último evento notificado se conservan localmente para evitar alertas duplicadas.
+- La alerta funciona mientras YakuAlert permanece abierto; un aviso con la página completamente cerrada requeriría un servicio externo de notificaciones push.
 
 ### Modelo multi-río
 
@@ -65,6 +72,7 @@ La orden `npm run build` genera un Worker de producción en `dist/server/index.j
 - Cambiar la ventana a 50 y 250 lecturas.
 - Verificar la versión móvil a 390 px.
 - Exportar un CSV de prueba.
+- Autorizar notificaciones y validar los avisos de amarillo alto y rojo con datos controlados.
 
 ## Disponibilidad mínima de una semana
 

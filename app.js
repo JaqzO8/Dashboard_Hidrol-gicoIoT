@@ -1,3 +1,4 @@
+import "./src/ui/shell.js";
 import { PERU_RIVERS } from "./data/peru-rivers.js";
 import { LiveFeedController, LIVE_INTERVAL_MS } from "./src/core/live-feed.js";
 import { buildFeedUrl, buildLatestFeedUrl } from "./src/services/thingspeak.js";
@@ -40,13 +41,20 @@ const RIVER_DETAILS = {
 const STATUS = {
   0: { label: "Normal", description: "Condiciones estables", className: "status-0", color: "#16A34A" },
   1: { label: "Preventivo", description: "Requiere observación", className: "status-1", color: "#D97706" },
-  2: { label: "Alerta", description: "Variación relevante", className: "status-2", color: "#EA580C" },
+  2: { label: "Amarillo alto", description: "Nivel alto: active el protocolo preventivo", className: "status-2", color: "#CA8A04" },
   3: { label: "Crítico", description: "Atención inmediata", className: "status-3", color: "#DC2626" }
 };
 const $ = (id) => document.getElementById(id);
 let feeds = [];
 let charts = [];
 let liveFeed;
+let alertAudioContext;
+
+export function deriveAlertLevel(status, level) {
+  if (status >= 3 || level >= 5) return "critical";
+  if (status >= 2 || level >= 3.5) return "warning";
+  return null;
+}
 
 export function riverMeta(name) {
   return { name, region: "Por validar", locality: "Localidad por asignar", channel: "", ...(RIVER_DETAILS[name] || {}) };
@@ -254,6 +262,97 @@ function renderLimnimeter(level) {
   }
 }
 
+function alertsAreEnabled() {
+  return localStorage.getItem("yakualert.notifications") === "enabled" && typeof Notification !== "undefined" && Notification.permission === "granted";
+}
+
+function updateNotificationStatus() {
+  const status = $("notificationStatus");
+  const button = $("enableAlerts");
+  if (!status || !button) return;
+  if (alertsAreEnabled()) {
+    status.textContent = "Alertas activas: aviso visual, sonido y notificación del navegador.";
+    button.textContent = "Alertas activas";
+    button.disabled = true;
+  } else if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+    status.textContent = "Notificaciones bloqueadas por el navegador. Habilítalas en los permisos del sitio.";
+    button.textContent = "Permiso bloqueado";
+    button.disabled = true;
+  }
+}
+
+function soundAlert(level) {
+  try {
+    alertAudioContext ||= new AudioContext();
+    const oscillator = alertAudioContext.createOscillator();
+    const gain = alertAudioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = level === "critical" ? 880 : 660;
+    gain.gain.setValueAtTime(0.0001, alertAudioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.25, alertAudioContext.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, alertAudioContext.currentTime + 0.65);
+    oscillator.connect(gain).connect(alertAudioContext.destination);
+    oscillator.start();
+    oscillator.stop(alertAudioContext.currentTime + 0.7);
+  } catch { /* El aviso visual y la notificación siguen disponibles. */ }
+}
+
+async function sendBrowserNotification(title, body, tag) {
+  if (!alertsAreEnabled()) return;
+  const registration = await navigator.serviceWorker?.ready.catch(() => null);
+  if (registration) {
+    await registration.showNotification(title, { body, icon: "yakualert-logo.jpeg", badge: "yakualert-logo.jpeg", tag, renotify: true });
+  } else {
+    new Notification(title, { body, icon: "yakualert-logo.jpeg", tag });
+  }
+}
+
+function evaluateAndEmitAlert(reading) {
+  const alertLevel = deriveAlertLevel(reading.status, reading.level);
+  const banner = $("alertBanner");
+  if (!alertLevel) {
+    if (banner) banner.hidden = true;
+    return;
+  }
+
+  const critical = alertLevel === "critical";
+  const title = critical ? "ALERTA ROJA" : "ALERTA AMARILLO ALTO";
+  const body = `${currentConfig().river}: nivel ${fmt(reading.level)} m · Entry #${reading.entryId}. ${critical ? "Atención inmediata." : "Active el protocolo preventivo."}`;
+  if (banner) {
+    banner.hidden = false;
+    banner.className = `alert-banner ${alertLevel}`;
+    if ($("alertTitle")) $("alertTitle").textContent = title;
+    if ($("alertMessage")) $("alertMessage").textContent = body;
+  }
+
+  const alertKey = `${currentConfig().channel}:${reading.entryId}:${alertLevel}`;
+  if (alertsAreEnabled()) {
+    if (localStorage.getItem("yakualert.lastAlert") === alertKey) return;
+    localStorage.setItem("yakualert.lastAlert", alertKey);
+    soundAlert(alertLevel);
+    sendBrowserNotification(`YakuAlert · ${title}`, body, alertKey).catch(() => {});
+  }
+}
+
+async function enableAlerts() {
+  if (typeof Notification === "undefined") {
+    toast("Este navegador no admite notificaciones del sistema", true);
+    return;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission === "granted") {
+    localStorage.setItem("yakualert.notifications", "enabled");
+    alertAudioContext ||= new AudioContext();
+    await alertAudioContext.resume();
+    updateNotificationStatus();
+    toast("Alertas de YakuAlert activadas");
+    if (feeds.length) evaluateAndEmitAlert(feeds.at(-1));
+  } else {
+    updateNotificationStatus();
+    toast("No se concedió permiso para notificaciones", true);
+  }
+}
+
 function render() {
   renderRiverContext(selectedRiverName());
   if (!feeds.length) {
@@ -303,6 +402,7 @@ function render() {
   }
 
   renderLimnimeter(last.level);
+  evaluateAndEmitAlert(last);
   checkDataFreshness();
   renderCharts();
   renderTable();
@@ -516,6 +616,7 @@ function createLiveFeed() {
 }
 
 if (typeof document !== "undefined") {
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   liveFeed = createLiveFeed();
   initializeRiverCatalog();
   if ($("rangeSelect")) $("rangeSelect").addEventListener("change", () => loadData());
@@ -531,6 +632,9 @@ if (typeof document !== "undefined") {
   };
   if ($("openSettings")) $("openSettings").addEventListener("click", showSettings);
   if ($("mobileSettings")) $("mobileSettings").addEventListener("click", showSettings);
+  if ($("enableAlerts")) $("enableAlerts").addEventListener("click", enableAlerts);
+  if ($("dismissAlert")) $("dismissAlert").addEventListener("click", () => { $("alertBanner").hidden = true; });
+  updateNotificationStatus();
 
   if ($("settingsForm")) {
     $("settingsForm").addEventListener("submit", (event) => {
@@ -550,13 +654,5 @@ if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) loadData();
   });
-  document.querySelectorAll(".sidebar nav a").forEach((a) =>
-    a.addEventListener("click", () => {
-      document.querySelectorAll(".sidebar nav a").forEach((n) => n.classList.remove("active"));
-      a.classList.add("active");
-    })
-  );
   loadData();
 }
-
-

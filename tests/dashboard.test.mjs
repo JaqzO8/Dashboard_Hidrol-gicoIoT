@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFeedUrl, buildLatestFeedUrl, mergeLatestFeeds, normalizeFeed, riverMeta, stats } from "../app.js";
+import { buildFeedUrl, buildLatestFeedUrl, deriveAlertLevel, mergeLatestFeeds, normalizeFeed, riverMeta, stats } from "../app.js";
 import { PERU_RIVERS } from "../data/peru-rivers.js";
 import { LIVE_INTERVAL_MS, BURST_INTERVAL_MS, BACKGROUND_INTERVAL_MS } from "../src/core/live-feed.js";
 
@@ -70,6 +70,14 @@ test("integra una lectura nueva sin duplicar y conserva la ventana", () => {
   assert.strictEqual(mergeLatestFeeds(base, base[1], 2), base);
 });
 
+test("activa alerta en amarillo alto y rojo por estado o nivel", () => {
+  assert.equal(deriveAlertLevel(2, 1), "warning");
+  assert.equal(deriveAlertLevel(0, 3.5), "warning");
+  assert.equal(deriveAlertLevel(3, 1), "critical");
+  assert.equal(deriveAlertLevel(0, 5), "critical");
+  assert.equal(deriveAlertLevel(1, 2.5), null);
+});
+
 // Nuevas Pruebas de Precisión (CP-13 a CP-17)
 
 test("CP-13: descarta lecturas duplicadas o desordenadas en mergeLatestFeeds", () => {
@@ -118,4 +126,3 @@ test("CP-17: preserva decimales exactos en normalizeFeed sin redondeo", () => {
   assert.equal(row.level, 12.3456789);
   assert.equal(String(row.level), rawValue);
 });
-
