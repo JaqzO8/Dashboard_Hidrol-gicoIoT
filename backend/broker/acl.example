@@ -1,0 +1,11 @@
+user tingomaria-01
+topic write sitpa/v1/stations/tingomaria-01/telemetry
+topic write sitpa/v1/stations/tingomaria-01/state
+topic write sitpa/v1/stations/tingomaria-01/alert
+topic write sitpa/v1/stations/tingomaria-01/status
+
+user sitpa-backend
+topic read sitpa/v1/stations/+/telemetry
+topic read sitpa/v1/stations/+/state
+topic read sitpa/v1/stations/+/alert
+topic read sitpa/v1/stations/+/status

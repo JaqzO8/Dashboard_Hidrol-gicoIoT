@@ -19,6 +19,25 @@
   --radius: 8px;
 }
 
+.operational-strip { display:flex; flex-wrap:wrap; gap:10px 20px; margin:0 0 20px; font-size:11px; font-weight:700; color:#475569; }
+.operational-strip strong { color:#b45309; }
+.history-controls { display:flex; flex-wrap:wrap; align-items:end; gap:12px; padding:18px; margin-bottom:20px; }
+.history-controls label { display:grid; gap:6px; font-size:12px; }
+.history-controls input, .history-controls select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; background:white; min-width:0; }
+.history-controls small { width:100%; color:#64748b; }
+.forecast-panel { padding:24px; margin-bottom:24px; min-width:0; }
+.forecast-panel h2 { margin:8px 0 20px; font-size:23px; }
+.forecast-summary { display:flex; flex-wrap:wrap; gap:28px; margin-bottom:20px; }
+.forecast-summary > div { display:grid; gap:6px; }
+.forecast-summary span, .forecast-summary small { font-size:12px; color:#64748b; }
+.forecast-summary strong { font-size:26px; color:#0f172a; }
+.forecast-notice { background:#f1f5f9; padding:14px; border-left:3px solid #0284c7; font-size:13px; }
+.forecast-meta { font-size:12px; line-height:1.8; color:#475569; }
+.forecast-panel table { min-width:760px; }
+.brand-logo { object-fit:contain; }
+[hidden] { display:none !important; }
+@media(max-width:600px) { .history-controls label { width:100%; } .forecast-panel { padding:16px; } .operational-strip { gap:8px; } }
+
 * {
   box-sizing: border-box;
 }
@@ -287,6 +306,8 @@ main {
 
 .topbar {
   display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
   justify-content: space-between;
   align-items: flex-end;
   margin-bottom: 24px;
@@ -315,6 +336,8 @@ main {
 
 .top-actions {
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: center;
   gap: 16px;
 }
@@ -521,17 +544,16 @@ main {
 
 .limnimeter-scale {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  position: relative;
   font-size: 10px;
   font-weight: 600;
 }
 
-.limnimeter-scale .mark.critical { color: var(--status-critical); }
-.limnimeter-scale .mark.alert { color: var(--status-alert); }
-.limnimeter-scale .mark.preventive { color: var(--status-preventive); }
-.limnimeter-scale .mark.normal { color: var(--status-normal); }
+.limnimeter-scale .mark { position:absolute; left:0; transform:translateY(50%); white-space:nowrap; }
+.limnimeter-scale .mark.critical { color: var(--status-critical); bottom:50%; }
+.limnimeter-scale .mark.alert { color: var(--status-critical); bottom:40%; }
+.limnimeter-scale .mark.preventive { color: var(--status-preventive); bottom:20%; }
+.limnimeter-scale .mark.normal { color: var(--status-normal); bottom:0; }
 
 .limnimeter-bar {
   width: 24px;
@@ -677,6 +699,7 @@ main {
 
 .chart-card, .insight-card {
   padding: 20px 24px;
+  min-width: 0;
 }
 
 .card-head {
@@ -705,6 +728,8 @@ main {
 
 .chart {
   height: 260px;
+  width: 100%;
+  min-width: 0;
   margin-top: 8px;
 }
 

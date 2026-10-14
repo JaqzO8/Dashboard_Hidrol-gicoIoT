@@ -1,0 +1,6 @@
+{
+  "apiBaseUrl": "",
+  "stationId": "tingomaria-01",
+  "liveMs": 3000,
+  "staleMs": 10000
+}

@@ -1,14 +1,13 @@
 import "./src/ui/shell.js";
 import { PERU_RIVERS } from "./data/peru-rivers.js";
-import { LiveFeedController, LIVE_INTERVAL_MS } from "./src/core/live-feed.js";
-import { buildFeedUrl, buildLatestFeedUrl } from "./src/services/thingspeak.js";
+import { RealtimeFeedController } from "./src/core/realtime-feed.js";
+import { fetchHistory, telemetryFreshness, validateApiBase } from "./src/services/realtime.js";
+import { renderForecast } from "./src/ui/forecast.js";
 
-export { buildFeedUrl, buildLatestFeedUrl };
-
-const DEFAULT_CHANNEL = "3420787";
+const DEFAULT_STATION = "tingomaria-01";
 const DEFAULT_RIVER = "Río Huallaga";
 const RIVER_DETAILS = {
-  "Río Huallaga": { region: "Amazonas", locality: "Huánuco, San Martín y Loreto", channel: DEFAULT_CHANNEL },
+  "Río Huallaga": { region: "Amazonas", locality: "Huánuco, San Martín y Loreto", stationId: DEFAULT_STATION },
   "Río Amazonas": { region: "Amazonas", locality: "Loreto" },
   "Río Marañón": { region: "Amazonas", locality: "Huánuco, Áncash, Cajamarca, Amazonas y Loreto" },
   "Río Ucayali": { region: "Amazonas", locality: "Ucayali y Loreto" },
@@ -41,42 +40,41 @@ const RIVER_DETAILS = {
 const STATUS = {
   0: { label: "Normal", description: "Condiciones estables", className: "status-0", color: "#16A34A" },
   1: { label: "Preventivo", description: "Requiere observación", className: "status-1", color: "#D97706" },
-  2: { label: "Amarillo alto", description: "Nivel alto: active el protocolo preventivo", className: "status-2", color: "#CA8A04" },
+  2: { label: "Alto", description: "Nivel alto: active el protocolo preventivo", className: "status-2", color: "#DC2626" },
   3: { label: "Crítico", description: "Atención inmediata", className: "status-3", color: "#DC2626" }
 };
 const $ = (id) => document.getElementById(id);
 let feeds = [];
 let charts = [];
+let echarts, chartRevision = 0;
 let liveFeed;
 let alertAudioContext;
+let runtimeConfig = { apiBaseUrl: "", liveMs: 3000, staleMs: 10000 };
+let operationalStatus = {}, lastForecast = null, historyRows = null, historyCursor = null;
+let historyAbort;
+const visibleRows = () => historyRows ?? feeds;
 
 export function deriveAlertLevel(status, level) {
-  if (status >= 3 || level >= 5) return "critical";
-  if (status >= 2 || level >= 3.5) return "warning";
+  if (status >= 3 || (Number.isFinite(level) && level >= 0.10)) return "critical";
+  if (status >= 2 || (Number.isFinite(level) && level >= 0.08)) return "warning";
   return null;
 }
 
 export function riverMeta(name) {
-  return { name, region: "Por validar", locality: "Localidad por asignar", channel: "", ...(RIVER_DETAILS[name] || {}) };
+  return { name, region: "Por validar", locality: "Localidad por asignar", stationId: "", ...(RIVER_DETAILS[name] || {}) };
 }
 
 export function normalizeFeed(feed) {
-  const number = (value) => {
-    if (value === null || value === undefined || value === "") return null;
-    const n = Number(value);
-    return Number.isNaN(n) ? null : n;
-  };
-  return {
-    date: new Date(feed.created_at),
-    entryId: Number(feed.entry_id),
-    level: number(feed.field1),
-    rain: number(feed.field2),
-    temp: number(feed.field3),
-    hum: number(feed.field4),
-    speed: number(feed.field5),
-    prediction: number(feed.field6),
-    status: number(feed.field7)
-  };
+  const meters = value => Number.isFinite(value) ? value / 100 : null;
+  const aggregate = Number.isInteger(feed.samples);
+  return { date: new Date(feed.serverTimestamp), entryId: feed.id ?? feed.serverTimestamp,
+    stationId: feed.stationId, sequence: feed.sequence ?? null, bootId: feed.bootId ?? null,
+    deviceTimestamp: feed.deviceTimestamp ?? null, level: meters(feed.levelCm), distance: feed.distanceCm ?? null,
+    rain: aggregate ? null : typeof feed.rainDetected === "boolean" ? Number(feed.rainDetected) : null,
+    rainRaw: feed.rainRaw ?? null, temp: feed.temperatureC ?? null, hum: feed.humidityPct ?? null,
+    speed: feed.riseRateCmMin ?? null, prediction: meters(feed.edgePredictionCm), status: feed.stateCode,
+    quality: feed.quality ?? {}, sensorAgeMs: feed.sensorAgeMs ?? {}, simulation: feed.simulation === true,
+    samples: feed.samples ?? null, min: meters(feed.levelMinCm), max: meters(feed.levelMaxCm), aggregate };
 }
 
 export function stats(values) {
@@ -93,7 +91,7 @@ export function mergeLatestFeeds(rows, latest, limit = 100) {
     .slice(-limit);
 }
 
-const fmt = (value, digits = 2) => (Number.isFinite(value) ? value.toLocaleString("es-PE", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "—");
+const fmt = (value, digits = 3) => (Number.isFinite(value) ? value.toLocaleString("es-PE", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "—");
 
 const fmtDate = (date, compact = false) => {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "—";
@@ -108,7 +106,7 @@ const fmtDate = (date, compact = false) => {
 const selectedRiverName = () => sessionStorage.getItem("selectedRiver") || DEFAULT_RIVER;
 const customStations = () => {
   try {
-    return JSON.parse(sessionStorage.getItem("tsRiverStations") || "{}");
+    return JSON.parse(sessionStorage.getItem("sitpaRiverStations") || "{}");
   } catch {
     return {};
   }
@@ -118,12 +116,15 @@ const currentConfig = () => {
   const river = selectedRiverName();
   const base = riverMeta(river);
   const custom = customStations()[river] || {};
-  return { river, ...base, channel: custom.channel || base.channel, apiKey: custom.apiKey || "", results: Number($("rangeSelect")?.value || 100) };
+  return { river, ...base, stationId: custom.stationId || base.stationId, apiBaseUrl: sessionStorage.getItem("sitpa.apiBaseUrl") || runtimeConfig.apiBaseUrl, results: Number($("rangeSelect")?.value || 100) };
 };
 
 async function loadData(showFeedback = false) {
-  const { channel, river } = currentConfig();
-  if (!channel) {
+  const { stationId, river } = currentConfig();
+  historyAbort?.abort(); historyRows = null; historyCursor = null; feeds = []; lastForecast = null; operationalStatus = {}; renderForecast(null);
+  if ($("alertBanner")) $("alertBanner").hidden = true;
+  renderUnavailableRiver();
+  if (!stationId) {
     liveFeed?.stop();
     renderRiverContext(river);
     renderUnavailableRiver();
@@ -134,9 +135,9 @@ async function loadData(showFeedback = false) {
 
 function renderRiverContext(name) {
   const meta = riverMeta(name);
-  const configuredChannel = currentConfig().channel;
+  const configuredStation = currentConfig().stationId;
   if ($("sideRiver")) $("sideRiver").textContent = name;
-  if ($("sideChannel")) $("sideChannel").textContent = configuredChannel ? `Canal #${configuredChannel}` : "Canal pendiente";
+  if ($("sideChannel")) $("sideChannel").textContent = configuredStation ? `Estación ${configuredStation}` : "Estación pendiente";
   if ($("heroLocation")) $("heroLocation").textContent = `📍 ${name} · ${meta.locality}`;
   if ($("heroBasin")) $("heroBasin").textContent = `◷ Región hidrográfica ${meta.region}`;
   if ($("settingsRiver")) $("settingsRiver").textContent = name;
@@ -146,26 +147,27 @@ function renderRiverContext(name) {
 
 function renderUnavailableRiver() {
   feeds = [];
-  setConnectionState("offline", "Estación pendiente", "Río sin canal IoT asociado");
+  chartRevision++;
+  setConnectionState("offline", "Estación pendiente de conexión");
   if ($("levelValue")) $("levelValue").textContent = "—";
-  if ($("levelTrend")) $("levelTrend").textContent = "Configure un canal para activar la telemetría";
+  if ($("levelTrend")) $("levelTrend").textContent = "Esperando la conexión de la estación y sus sensores";
   if ($("systemStatus")) {
-    $("systemStatus").textContent = "Sin estación";
+    $("systemStatus").textContent = currentConfig().stationId ? "Sin telemetría" : "Sin estación";
     $("systemStatus").style.color = "#88a8b3";
   }
-  if ($("statusDescription")) $("statusDescription").textContent = "Estación pendiente — este río aún no tiene datos IoT asociados.";
+  if ($("statusDescription")) $("statusDescription").textContent = "Sin lecturas disponibles. La estación debe estar conectada y publicar telemetría.";
   ["kpiLevel", "kpiRain", "kpiTemp", "kpiHum", "kpiSpeed", "avgLevel", "maxLevel"].forEach((id) => {
     if ($(id)) $(id).textContent = "—";
   });
   if ($("kpiLevelDelta")) $("kpiLevelDelta").textContent = "Telemetría pendiente";
-  if ($("kpiRainState")) $("kpiRainState").textContent = "Sin estación asociada";
+  if ($("kpiRainState")) $("kpiRainState").textContent = "Sin lectura del sensor";
   if ($("insightTitle")) $("insightTitle").textContent = "Este río está listo para incorporarse.";
-  if ($("insightText")) $("insightText").textContent = "Estación pendiente — este río aún no tiene datos IoT asociados.";
+  if ($("insightText")) $("insightText").textContent = "Sin lecturas disponibles. La estación debe estar conectada y publicar telemetría.";
   if ($("lastUpdated")) $("lastUpdated").textContent = "—";
   if ($("entryCount")) $("entryCount").textContent = "0 lecturas";
   if ($("downloadCsv")) $("downloadCsv").textContent = "Exportar CSV (0 lecturas)";
   if ($("recordsBody")) {
-    $("recordsBody").innerHTML = '<tr><td colspan="9" class="empty">Estación pendiente — este río aún no tiene datos IoT asociados.</td></tr>';
+    $("recordsBody").innerHTML = '<tr><td colspan="9" class="empty">Sin lecturas disponibles. La estación debe estar conectada y publicar telemetría.</td></tr>';
   }
   renderLimnimeter(null);
   charts.forEach((instance) => instance.clear());
@@ -190,8 +192,8 @@ function renderRiverDirectory(query = "") {
     $("riverResults").innerHTML = matches.length
       ? matches.map((name) => {
           const meta = riverMeta(name);
-          const hasStation = Boolean(meta.channel || customStations()[name]?.channel);
-          return `<button class="river-result ${name === selected ? "active" : ""}" type="button" data-river="${name.replaceAll('"', "&quot;")}"><span><strong>${name}</strong><small>${meta.locality} · ${meta.region}</small></span><span class="station-state ${hasStation ? "live" : ""}">${hasStation ? "EN VIVO" : "PENDIENTE"}</span></button>`;
+          const hasStation = Boolean(meta.stationId || customStations()[name]?.stationId);
+          return `<button class="river-result ${name === selected ? "active" : ""}" type="button" data-river="${name.replaceAll('"', "&quot;")}"><span><strong>${name}</strong><small>${meta.locality} · ${meta.region}</small></span><span class="station-state ${hasStation ? "live" : ""}">${hasStation ? "CONFIGURADA" : "PENDIENTE"}</span></button>`;
         }).join("")
       : '<div class="empty">No se encontraron ríos con ese nombre.</div>';
     $("riverResults").querySelectorAll("[data-river]").forEach((button) => button.addEventListener("click", () => selectRiver(button.dataset.river)));
@@ -200,9 +202,9 @@ function renderRiverDirectory(query = "") {
 
 function initializeRiverCatalog() {
   if ($("riverCount")) $("riverCount").textContent = PERU_RIVERS.length.toLocaleString("es-PE");
-  if ($("activeStationCount")) $("activeStationCount").textContent = String(1 + Object.entries(customStations()).filter(([name, station]) => name !== DEFAULT_RIVER && station?.channel).length);
+  if ($("activeStationCount")) $("activeStationCount").textContent = String(1 + Object.entries(customStations()).filter(([name, station]) => name !== DEFAULT_RIVER && station?.stationId).length);
   if ($("riverSelect")) {
-    $("riverSelect").innerHTML = PERU_RIVERS.map((name) => `<option value="${name.replaceAll('"', "&quot;")}">${name}${name === DEFAULT_RIVER ? " · EN VIVO" : ""}</option>`).join("");
+    $("riverSelect").innerHTML = PERU_RIVERS.map((name) => `<option value="${name.replaceAll('"', "&quot;")}">${name}${name === DEFAULT_RIVER ? " · CONFIGURADA" : ""}</option>`).join("");
     $("riverSelect").value = selectedRiverName();
   }
   renderRiverContext(selectedRiverName());
@@ -222,27 +224,32 @@ function setConnectionState(mode, label, detail = "") {
   }
   if (livePill) {
     livePill.className = `live-pill ${mode}`;
-    const modeText = mode === "online" ? "EN VIVO" : mode === "delayed" ? "RETRASADO" : "SIN CONEXIÓN";
+    const modeText = mode === "online" ? "EN VIVO" : mode === "delayed" ? "RETRASADO" : "NO DISPONIBLE";
     livePill.innerHTML = `<span></span> TELEMETRÍA ${modeText} ${detail ? `<small>(${detail})</small>` : ""}`;
   }
 }
 
 function checkDataFreshness() {
-  if (!feeds.length) return;
-  const last = feeds.at(-1);
-  const now = Date.now();
-  const dataAgeSec = (now - last.date.getTime()) / 1000;
-  const lastSuccessAgeSec = liveFeed ? (now - liveFeed.lastFetchSuccessTime) / 1000 : 0;
-
-  if (liveFeed && liveFeed.failureCount > 0) {
-    setConnectionState("offline", "Sin conexión con ThingSpeak", "Reintentando...");
-  } else if (lastSuccessAgeSec > 20 || dataAgeSec > 30) {
-    const ageText = dataAgeSec > 0 ? `hace ${Math.round(dataAgeSec)} s` : "retrasado";
-    setConnectionState("delayed", "Retrasado", ageText);
-  } else {
-    const apiKey = currentConfig().apiKey;
-    setConnectionState("online", apiKey ? "Privado · en vivo" : "Público · en vivo");
-  }
+  const latest = feeds.at(-1);
+  const freshness = telemetryFreshness(latest?.date?.getTime(), Date.now(), operationalStatus.liveMs ? operationalStatus : runtimeConfig);
+  const connected = liveFeed?.connected === true;
+  const configured = Boolean(currentConfig().apiBaseUrl);
+  if ($("connectionNotice")) $("connectionNotice").hidden = configured;
+  if ($("historyLoad")) $("historyLoad").disabled = !configured;
+  if ($("serverState")) $("serverState").textContent = !configured ? "CONEXIÓN EN PREPARACIÓN" : connected ? "SERVIDOR CONECTADO" : "SERVIDOR DESCONECTADO";
+  if ($("stationState")) $("stationState").textContent = connected && operationalStatus.stationOnline ? "ESTACIÓN ONLINE" : "ESTACIÓN OFFLINE / SIN CONFIRMAR";
+  if ($("telemetryState")) $("telemetryState").textContent = freshness === "live" ? "TELEMETRÍA EN VIVO" : freshness === "delayed" ? "TELEMETRÍA RETRASADA" : "SIN TELEMETRÍA";
+  if ($("simulationState")) $("simulationState").hidden = !latest?.simulation;
+  const validSensor = latest?.quality?.levelValid === true && latest.sensorAgeMs.level <= 3000;
+  const climateValid = latest?.quality?.climateValid === true && latest.sensorAgeMs.climate <= 10000;
+  for (const id of ["kpiTemp", "kpiHum"]) if ($(id)) $(id).title = climateValid ? "Última medición válida" : "Último valor conservado; sensor sin lectura válida reciente";
+  if (latest && $("statusDescription")) $("statusDescription").textContent = !validSensor ? "Fallo o antigüedad del sensor de nivel: se conserva el último estado recibido." : freshness !== "live" ? "Último estado recibido; telemetría desactualizada." : (STATUS[latest.status]?.description || "Estado sin catalogar");
+  if ($("sensorState")) $("sensorState").textContent = latest && !validSensor ? "SENSOR DE NIVEL SIN LECTURA VÁLIDA" : "";
+  setConnectionState(freshness === "live" && connected ? "online" : freshness === "delayed" ? "delayed" : "offline",
+    !configured ? "Estación pendiente de conexión" : !connected ? "Reconectando al servidor" : freshness === "live" ? "Telemetría en vivo" : freshness === "delayed" ? "Telemetría retrasada" : "Sin telemetría");
+  if (!connected || freshness !== "live" || !validSensor) renderForecast(null, latest, !configured ? "Estación pendiente de conexión y mediciones reales" : "Telemetría desactualizada, sensor inválido o servidor desconectado");
+  else renderForecast(lastForecast, latest);
+  if ((!connected || freshness !== "live") && $("alertBanner")) $("alertBanner").hidden = true;
 }
 
 function renderLimnimeter(level) {
@@ -253,7 +260,7 @@ function renderLimnimeter(level) {
     if ($("limnimeterPointer")) $("limnimeterPointer").textContent = "— m";
     return;
   }
-  const maxRange = 5.0;
+  const maxRange = 0.20; // Prototipo original: fondo a 20 cm.
   const percent = Math.min(100, Math.max(0, (level / maxRange) * 100));
   gauge.style.setProperty("--level-percent", `${percent}%`);
   if ($("limnimeterPointer")) {
@@ -263,7 +270,7 @@ function renderLimnimeter(level) {
 }
 
 function alertsAreEnabled() {
-  return localStorage.getItem("yakualert.notifications") === "enabled" && typeof Notification !== "undefined" && Notification.permission === "granted";
+  return localStorage.getItem("sitpa.notifications") === "enabled" && typeof Notification !== "undefined" && Notification.permission === "granted";
 }
 
 function updateNotificationStatus() {
@@ -301,22 +308,24 @@ async function sendBrowserNotification(title, body, tag) {
   if (!alertsAreEnabled()) return;
   const registration = await navigator.serviceWorker?.ready.catch(() => null);
   if (registration) {
-    await registration.showNotification(title, { body, icon: "yakualert-logo.jpeg", badge: "yakualert-logo.jpeg", tag, renotify: true });
+    await registration.showNotification(title, { body, icon: "sitpa-logo.jpg", tag, renotify: true });
   } else {
-    new Notification(title, { body, icon: "yakualert-logo.jpeg", tag });
+    new Notification(title, { body, icon: "sitpa-logo.jpg", tag });
   }
 }
 
 function evaluateAndEmitAlert(reading) {
+  if (!liveFeed?.connected || telemetryFreshness(reading.date.getTime()) !== "live" || reading.quality.levelValid !== true) return;
   const alertLevel = deriveAlertLevel(reading.status, reading.level);
   const banner = $("alertBanner");
   if (!alertLevel) {
+    localStorage.removeItem("sitpa.lastAlert");
     if (banner) banner.hidden = true;
     return;
   }
 
   const critical = alertLevel === "critical";
-  const title = critical ? "ALERTA ROJA" : "ALERTA AMARILLO ALTO";
+  const title = critical ? "ALERTA ROJA" : "ALERTA DE NIVEL ALTO";
   const body = `${currentConfig().river}: nivel ${fmt(reading.level)} m · Entry #${reading.entryId}. ${critical ? "Atención inmediata." : "Active el protocolo preventivo."}`;
   if (banner) {
     banner.hidden = false;
@@ -325,12 +334,12 @@ function evaluateAndEmitAlert(reading) {
     if ($("alertMessage")) $("alertMessage").textContent = body;
   }
 
-  const alertKey = `${currentConfig().channel}:${reading.entryId}:${alertLevel}`;
+  const alertKey = `${currentConfig().stationId}:${alertLevel}`;
   if (alertsAreEnabled()) {
-    if (localStorage.getItem("yakualert.lastAlert") === alertKey) return;
-    localStorage.setItem("yakualert.lastAlert", alertKey);
+    if (localStorage.getItem("sitpa.lastAlert") === alertKey) return;
+    localStorage.setItem("sitpa.lastAlert", alertKey);
     soundAlert(alertLevel);
-    sendBrowserNotification(`YakuAlert · ${title}`, body, alertKey).catch(() => {});
+    sendBrowserNotification(`SITPA · ${title}`, body, alertKey).catch(() => {});
   }
 }
 
@@ -341,11 +350,11 @@ async function enableAlerts() {
   }
   const permission = await Notification.requestPermission();
   if (permission === "granted") {
-    localStorage.setItem("yakualert.notifications", "enabled");
+    localStorage.setItem("sitpa.notifications", "enabled");
     alertAudioContext ||= new AudioContext();
     await alertAudioContext.resume();
     updateNotificationStatus();
-    toast("Alertas de YakuAlert activadas");
+    toast("Alertas de SITPA activadas");
     if (feeds.length) evaluateAndEmitAlert(feeds.at(-1));
   } else {
     updateNotificationStatus();
@@ -375,19 +384,19 @@ function render() {
   if ($("kpiLevel")) $("kpiLevel").textContent = `${fmt(last.level)} m`;
   if ($("kpiLevelDelta")) $("kpiLevelDelta").textContent = delta === null ? "Sin comparación" : `${delta >= 0 ? "+" : ""}${fmt(delta)} m en última lectura`;
 
-  if ($("kpiRain")) $("kpiRain").textContent = last.rain !== null && last.rain > 0 ? `${fmt(last.rain)} mm` : last.rain === 0 ? "0 mm" : "—";
+  if ($("kpiRain")) $("kpiRain").textContent = last.rain === 1 ? "Detectada" : last.rain === 0 ? "Sin lluvia" : "—";
   if ($("kpiRainState")) $("kpiRainState").textContent = last.rain !== null && last.rain > 0 ? "Evento detectado" : last.rain === 0 ? "Sin lluvia" : "Sin dato";
 
   if ($("kpiTemp")) $("kpiTemp").textContent = Number.isFinite(last.temp) ? `${fmt(last.temp, 1)} °C` : "—";
   if ($("kpiHum")) $("kpiHum").textContent = Number.isFinite(last.hum) ? `${fmt(last.hum, 1)} %` : "—";
-  if ($("kpiSpeed")) $("kpiSpeed").textContent = Number.isFinite(last.speed) ? fmt(last.speed) : "—";
+  if ($("kpiSpeed")) $("kpiSpeed").textContent = Number.isFinite(last.speed) ? `${fmt(last.speed)} cm/min` : "—";
 
   if ($("lastUpdated")) {
     $("lastUpdated").textContent = fmtDate(last.date);
     $("lastUpdated").title = `UTC: ${last.date.toISOString()} | Entry ID: ${last.entryId}`;
   }
   if ($("entryCount")) $("entryCount").textContent = `${feeds.length} lecturas`;
-  if ($("downloadCsv")) $("downloadCsv").textContent = `Exportar CSV (${feeds.length} lecturas)`;
+  if ($("downloadCsv")) $("downloadCsv").textContent = `Exportar CSV (${visibleRows().length} registros)`;
 
   const levelStats = stats(feeds.map((f) => f.level));
   if ($("avgLevel")) $("avgLevel").textContent = `${fmt(levelStats.avg)} m`;
@@ -395,7 +404,7 @@ function render() {
 
   const spread = levelStats.max !== null && levelStats.min !== null ? levelStats.max - levelStats.min : 0;
   if ($("insightTitle")) {
-    $("insightTitle").textContent = state.label === "Crítico" ? "La estación exige atención inmediata." : spread > 5 ? "El nivel presenta alta variación." : "La serie se mantiene dentro de parámetros estables.";
+    $("insightTitle").textContent = state.label === "Crítico" ? "La estación exige atención inmediata." : spread > 5 ? "El nivel presenta alta variación." : "Resumen de las mediciones observadas.";
   }
   if ($("insightText")) {
     $("insightText").textContent = `En la ventana analizada de ${feeds.length} lecturas, el nivel osciló entre ${fmt(levelStats.min)} m y ${fmt(levelStats.max)} m. El último registro corresponde al Entry #${last.entryId} (${fmtDate(last.date)}).`;
@@ -423,7 +432,7 @@ function baseChartOptions() {
     xAxis: {
       type: "category",
       boundaryGap: false,
-      data: feeds.map((f) => fmtDate(f.date, true)),
+      data: visibleRows().map((f) => fmtDate(f.date, true)),
       axisLine: { lineStyle: { color: "#CBD5E1" } },
       axisLabel: { color: "#64748B", fontSize: 9, hideOverlap: true, fontFamily: "Inter, system-ui, sans-serif" },
       axisTick: { show: false }
@@ -444,7 +453,7 @@ function lineSeries(name, data, color, area = true) {
     data,
     smooth: 0.28,
     showSymbol: false,
-    connectNulls: true,
+    connectNulls: false,
     lineStyle: { width: 2, color },
     itemStyle: { color },
     areaStyle: area
@@ -476,10 +485,15 @@ function chart(id, options) {
   instance.setOption(options, true);
 }
 
-function renderCharts() {
-  chart("levelChart", { ...baseChartOptions(), series: [lineSeries("Nivel", feeds.map((f) => f.level), "#0284C7")] });
-  chart("predictionChart", { ...baseChartOptions(), series: [lineSeries("Predicción", feeds.map((f) => f.prediction), "#D97706")] });
-  chart("speedChart", { ...baseChartOptions(), series: [lineSeries("Velocidad", feeds.map((f) => f.speed), "#16A34A")] });
+async function renderCharts() {
+  const revision = ++chartRevision;
+  if (!["levelChart", "predictionChart", "speedChart", "climateChart", "eventsChart"].some(id => $(id))) return;
+  try { echarts ||= (await import("./src/ui/charts.js")).echarts; }
+  catch { if (revision === chartRevision) toast("No se pudieron cargar los gráficos. Recarga la página.", true); return; }
+  if (revision !== chartRevision) return;
+  chart("levelChart", { ...baseChartOptions(), series: [lineSeries("Nivel", visibleRows().map((f) => f.level), "#0284C7")] });
+  chart("predictionChart", { ...baseChartOptions(), series: [lineSeries("Proyección edge +3 min (m)", visibleRows().map((f) => f.prediction), "#D97706")] });
+  chart("speedChart", { ...baseChartOptions(), series: [lineSeries("Velocidad (cm/min)", visibleRows().map((f) => f.speed), "#16A34A")] });
 
   const climate = baseChartOptions();
   climate.legend = { data: ["Temperatura", "Humedad"], textStyle: { color: "#64748B", fontSize: 10 }, top: 4 };
@@ -488,8 +502,8 @@ function renderCharts() {
     { ...climate.yAxis, name: "%", nameTextStyle: { color: "#64748B" } }
   ];
   climate.series = [
-    lineSeries("Temperatura", feeds.map((f) => f.temp), "#EA580C", false),
-    { ...lineSeries("Humedad", feeds.map((f) => f.hum), "#0284C7", false), yAxisIndex: 1 }
+    lineSeries("Temperatura", visibleRows().map((f) => f.temp), "#EA580C", false),
+    { ...lineSeries("Humedad", visibleRows().map((f) => f.hum), "#0284C7", false), yAxisIndex: 1 }
   ];
   chart("climateChart", climate);
 
@@ -507,7 +521,7 @@ function renderCharts() {
     {
       name: "Estado",
       type: "bar",
-      data: feeds.map((f) => ({
+      data: visibleRows().map((f) => ({
         value: f.status,
         itemStyle: { color: (STATUS[f.status] || STATUS[0]).color, borderRadius: [4, 4, 0, 0] }
       })),
@@ -519,17 +533,16 @@ function renderCharts() {
 
 function renderTable() {
   if (!$("recordsBody")) return;
-  $("recordsBody").innerHTML = [...feeds]
+  $("recordsBody").innerHTML = [...visibleRows()]
     .reverse()
-    .slice(0, 30)
     .map((row) => {
       const state = STATUS[row.status] || { label: `Código ${row.status}`, className: "" };
       const utcTitle = `UTC: ${row.date.toISOString()}`;
       return `<tr>
         <td title="${utcTitle}">${fmtDate(row.date)}</td>
-        <td><code>#${row.entryId}</code></td>
+        <td><code>#${row.sequence ?? row.entryId}</code>${row.aggregate ? `<small>${row.samples} muestras</small>` : ""}</td>
         <td><strong>${fmt(row.level)}</strong> m</td>
-        <td>${row.rain !== null && row.rain > 0 ? `${fmt(row.rain)} mm` : row.rain === 0 ? "0 mm" : "—"}</td>
+        <td>${row.rain === 1 ? "Sí" : row.rain === 0 ? "No" : "—"}</td>
         <td>${fmt(row.temp, 1)} °C</td>
         <td>${fmt(row.hum, 1)} %</td>
         <td>${fmt(row.speed)}</td>
@@ -551,67 +564,50 @@ function toast(message, error = false) {
 }
 
 function exportCsv() {
-  const header = ["rio", "localidad", "region_hidrografica", "fecha_hora_utc", "fecha_hora_lima", "entry_id", "nivel_m", "lluvia_mm", "temperatura_c", "humedad_porcentaje", "velocidad", "prediccion", "estado_codigo"];
   const config = currentConfig();
-  const rows = feeds.map((f) => [
-    config.river,
-    config.locality,
-    config.region,
-    f.date.toISOString(),
-    fmtDate(f.date),
-    f.entryId,
-    f.level,
-    f.rain,
-    f.temp,
-    f.hum,
-    f.speed,
-    f.prediction,
-    f.status
-  ]);
-  const csv = [header, ...rows].map((row) => row.map((v) => `"${v ?? ""}"`).join(",")).join("\n");
+  const header = ["estacion", "rio", "server_timestamp_utc", "secuencia", "boot_id", "device_timestamp", "nivel_m", "distancia_cm", "lluvia_detectada", "lluvia_adc", "temperatura_c", "humedad_pct", "velocidad_cm_min", "edge_3min_m", "estado", "simulacion", "muestras", "min_m", "max_m"];
+  const rows = visibleRows().map(f => [config.stationId, config.river, f.date.toISOString(), f.sequence, f.bootId, f.deviceTimestamp, f.level, f.distance, f.rain, f.rainRaw, f.temp, f.hum, f.speed, f.prediction, f.status, f.simulation, f.samples, f.min, f.max]);
+  const csv = [header, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  a.download = `${config.river.toLocaleLowerCase("es-PE").replaceAll(" ", "-")}-lecturas-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `sitpa-${config.stationId}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
 }
 
-function updateLiveState(state, delay = LIVE_INTERVAL_MS) {
-  const status = $("refreshStatus");
-  if (!status) return;
+async function loadHistory(older = false) {
+  if (!currentConfig().apiBaseUrl) { toast("El histórico estará disponible cuando se conecte la estación."); return; }
+  historyAbort?.abort();
+  const controller = new AbortController(); historyAbort = controller;
+  const query = { resolution: $("historyResolution")?.value || "raw" };
+  for (const key of ["from", "to"]) {
+    const value = $(key === "from" ? "historyFrom" : "historyTo")?.value;
+    if (value) query[key] = new Date(value).getTime();
+  }
+  if (older && historyCursor) query.before = historyCursor;
+  try {
+    const payload = await fetchHistory(currentConfig(), query, controller.signal);
+    if (controller.signal.aborted) return;
+    historyRows = payload.rows.map(normalizeFeed); historyCursor = payload.nextBefore;
+    if ($("historyOlder")) $("historyOlder").disabled = !historyCursor;
+    if ($("historyStatus")) $("historyStatus").textContent = `Histórico · ${historyRows.length} registros · ${payload.resolution}. La tabla y las gráficas muestran esta página.`;
+    if ($("downloadCsv")) $("downloadCsv").textContent = `Exportar CSV (${historyRows.length} registros)`;
+    renderTable(); renderCharts();
+  } catch (error) { if (error.name !== "AbortError") toast(error.message, true); }
+}
 
-  if (state === "loading") status.textContent = "Sincronizando con ThingSpeak…";
-  else if (state === "paused") status.textContent = "Pauta inactiva · sondeo a 60 s";
-  else if (state === "burst") status.textContent = `Modo ráfaga activo · sondeo a ${Math.round(delay / 1000)} s`;
-  else if (state === "offline") status.textContent = `Reintento automático en ${Math.round(delay / 1000)} s`;
-  else status.textContent = `Sincronización adaptativa · ${Math.round(delay / 1000)} s`;
-
+function updateLiveState(state) {
+  if ($("refreshStatus")) $("refreshStatus").textContent = state === "connected" ? "Suscripción WebSocket activa" : state === "unconfigured" ? "Estación pendiente de conexión" : state === "connecting" ? "Conectando al servidor…" : "Reconexión automática";
   checkDataFreshness();
 }
-
 function createLiveFeed() {
-  return new LiveFeedController({
+  return new RealtimeFeedController({
     getConfig: currentConfig,
-    onSnapshot(payload, { notify }) {
-      feeds = (payload.feeds || []).map(normalizeFeed).filter((row) => !Number.isNaN(row.date.getTime()));
-      if (!feeds.length) throw new Error("El canal no contiene lecturas en la ventana seleccionada");
-      render();
-      if (notify) toast("Datos sincronizados con ThingSpeak");
-    },
-    onLatest(raw) {
-      const latest = normalizeFeed(raw);
-      if (!Number.isFinite(latest.entryId) || Number.isNaN(latest.date.getTime())) return false;
-      if (feeds.at(-1)?.entryId === latest.entryId) return false;
-      const limit = currentConfig().results;
-      feeds = mergeLatestFeeds(feeds, latest, limit);
-      render();
-      return true;
-    },
+    onSnapshot(payload) { feeds = payload.rows.map(normalizeFeed); if (feeds.length) render(); else renderUnavailableRiver(); },
+    onLatest(raw) { const latest = normalizeFeed(raw); feeds = mergeLatestFeeds(feeds, latest, currentConfig().results); render(); },
+    onStatus(value) { operationalStatus = { ...operationalStatus, ...value }; checkDataFreshness(); },
+    onForecast(value) { lastForecast = value; checkDataFreshness(); },
     onState: updateLiveState,
-    onError(error, { silent = false } = {}) {
-      setConnectionState("offline", "Sin conexión", "Reintentando...");
-      if (!silent) toast(error.message || "No fue posible consultar ThingSpeak", true);
-    }
+    onError(error) { toast(error.message, true); }
   });
 }
 
@@ -626,8 +622,8 @@ if (typeof document !== "undefined") {
 
   const showSettings = () => {
     renderRiverContext(selectedRiverName());
-    if ($("channelInput")) $("channelInput").value = currentConfig().channel;
-    if ($("apiKeyInput")) $("apiKeyInput").value = currentConfig().apiKey;
+    if ($("channelInput")) $("channelInput").value = currentConfig().stationId;
+    if ($("apiKeyInput")) $("apiKeyInput").value = currentConfig().apiBaseUrl;
     if ($("settingsDialog")) $("settingsDialog").showModal();
   };
   if ($("openSettings")) $("openSettings").addEventListener("click", showSettings);
@@ -639,10 +635,17 @@ if (typeof document !== "undefined") {
   if ($("settingsForm")) {
     $("settingsForm").addEventListener("submit", (event) => {
       event.preventDefault();
+      if (event.submitter?.value === "cancel") { $("settingsDialog").close(); return; }
       const river = selectedRiverName();
       const stations = customStations();
-      stations[river] = { channel: $("channelInput").value.trim(), apiKey: $("apiKeyInput").value.trim() };
-      sessionStorage.setItem("tsRiverStations", JSON.stringify(stations));
+      try {
+        const apiBaseUrl = validateApiBase($("apiKeyInput").value.trim(), location.protocol);
+        const stationId = $("channelInput").value.trim();
+        if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(stationId)) throw new Error("ID de estación inválido");
+        stations[river] = { stationId };
+        sessionStorage.setItem("sitpa.apiBaseUrl", apiBaseUrl);
+      } catch (error) { toast(error.message, true); return; }
+      sessionStorage.setItem("sitpaRiverStations", JSON.stringify(stations));
       if ($("settingsDialog")) $("settingsDialog").close();
       initializeRiverCatalog();
       loadData(true);
@@ -650,9 +653,15 @@ if (typeof document !== "undefined") {
   }
 
   window.addEventListener("resize", () => charts.forEach((c) => c.resize()));
-  window.addEventListener("online", () => loadData());
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) loadData();
-  });
-  loadData();
+  for (const [id, fn] of [["historyLoad", () => loadHistory()], ["historyOlder", () => loadHistory(true)], ["historyLive", () => { historyAbort?.abort(); historyRows = null; historyCursor = null; render(); if ($("historyStatus")) $("historyStatus").textContent = "Ventana en vivo"; }]]) $(id)?.addEventListener("click", fn);
+  window.addEventListener("online", () => { if (!liveFeed.connected) liveFeed.refresh(); });
+  // Este reloj solo actualiza etiquetas; nunca consulta la red.
+  const freshnessTimer = setInterval(checkDataFreshness, 500);
+  window.addEventListener("pagehide", () => { clearInterval(freshnessTimer); liveFeed.stop(); historyAbort?.abort(); });
+  fetch("sitpa-config.json").then(r => r.ok ? r.json() : {}).then(config => {
+    runtimeConfig = { ...runtimeConfig, ...config };
+    if (!(runtimeConfig.liveMs > 0 && runtimeConfig.staleMs > runtimeConfig.liveMs)) { runtimeConfig.liveMs = 3000; runtimeConfig.staleMs = 10000; }
+    if (!runtimeConfig.apiBaseUrl && ["localhost", "127.0.0.1"].includes(location.hostname)) runtimeConfig.apiBaseUrl = "http://127.0.0.1:8787";
+    if (runtimeConfig.stationId) RIVER_DETAILS[DEFAULT_RIVER].stationId = runtimeConfig.stationId;
+  }).catch(() => {}).finally(() => loadData());
 }

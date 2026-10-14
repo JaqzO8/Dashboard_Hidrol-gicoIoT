@@ -1,64 +1,70 @@
-# YakuAlert
+# SITPA
 
-Plataforma web multi-río para visualizar las lecturas IoT de estaciones hidrológicas del Perú y emitir alertas preventivas. El canal ThingSpeak **3420787** corresponde al **Río Huallaga** y es la primera estación activa.
+Sistema de apoyo a la prevención y toma de decisiones hidrológicas. ESP32 → MQTT → backend → SQLite / WebSocket → dashboard. La alarma física funciona independientemente de Internet.
 
-## Producción
+Página pública: **https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/**. GitHub Pages publica automáticamente las cinco páginas al actualizar `main`, después de las pruebas y la compilación. Los gráficos se descargan cuando hacen falta, reduciendo la carga inicial del resumen.
 
-El dashboard se despliega automáticamente desde `main` mediante GitHub Actions y GitHub Pages:
+La estación está pendiente de conexión. El broker y el backend están preparados en el PC; todavía no tienen un alojamiento público. Por eso la web publicada muestra «Sin telemetría», sin lecturas de demostración ni alertas activas. La activación requiere configurar un backend HTTPS/WSS y comprobar el ESP32 con sus sensores.
 
-**https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/**
+El logo oficial es `public/sitpa-logo.jpg`, copia sin modificaciones de `SITPA_logo.jpg`. Se conservan las cinco páginas, sidebar, limnímetro, indicadores, gráficas, CSV y catálogo IGN de 969 ríos. ThingSpeak ya no participa en el firmware ni en la web.
 
-Repositorio público: **https://github.com/JaqzO8/Dashboard_Hidrol-gicoIoT**
+## Ejecutar sin placa
 
-El despliegue principal y público se mantiene en GitHub Pages.
-
-La operación, seguridad, costos, permanencia y recuperación están descritos en `docs/GUIA_DESPLIEGUE.md`.
-
-## Ejecutar
-
-Requiere Node.js 18 o superior.
+Requisito: Node.js 24 o superior.
 
 ```powershell
-npm start
-```
-
-Abra `http://localhost:4173`.
-
-## Conexión con ThingSpeak
-
-El canal se consulta mediante la API de lectura de ThingSpeak. Actualmente admite lectura pública, por lo que no se incluye ninguna credencial en el repositorio. Si el canal pasa a privado, use **Configurar conexión** e ingrese la *Read API Key*. La clave se conserva únicamente en `sessionStorage` y desaparece al cerrar la pestaña.
-
-## Funciones
-
-- Selector y buscador nacional con 969 ríos nombrados en la cartografía oficial del IGN a escala 1:500 000.
-- Ficha de localidad y región hidrográfica para los principales ríos.
-- Configuración independiente de un canal ThingSpeak por río durante la sesión.
-- Carga inicial de la ventana seleccionada y consulta incremental cada segundo. La lectura visible cambia cuando el sensor publica una nueva entrada en ThingSpeak.
-- Pausa inteligente cuando la pestaña está inactiva, reconexión automática y retroceso progresivo ante fallos.
-- Compilación optimizada con Vite y módulos separados para interfaz, actualización en vivo y acceso a ThingSpeak.
-- Ventanas de 50, 100, 250 o 500 lecturas.
-- Escalas separadas para nivel real, predicción y velocidad.
-- Doble escala para temperatura y humedad.
-- Estado actual, indicadores clave y resumen interpretativo.
-- Tabla de trazabilidad y exportación CSV.
-- Navegación multipágina: resumen, red nacional, tendencias, ambiente y registros tienen URLs independientes.
-- Alertas visuales, sonoras y mediante notificaciones del navegador cuando el estado llega a amarillo alto o rojo.
-- Diseño adaptable a escritorio, tableta y móvil.
-
-## Supuesto funcional
-
-La interfaz interpreta `field7` con la escala: `0 Normal`, `1 Preventivo`, `2 Amarillo alto`, `3 Crítico`. También activa amarillo alto desde 3,5 m y rojo desde 5,0 m. Estos umbrales deben validarse con el responsable del firmware/modelo antes de uso operativo.
-
-## Catálogo hidrográfico
-
-El archivo `data/peru-rivers.js` se genera desde la capa oficial **Ríos y Quebradas** de la Infraestructura de Datos Espaciales del Perú (IGN), filtrando los elementos nombrados como río. Se actualiza con `npm run sync:rivers`.
-
-Fuente: https://www.idep.gob.pe/geoportal/rest/services/DATOS_GEOESPACIALES/PER%C3%9A_500K/MapServer/23
-
-El catálogo identifica cobertura; no inventa telemetría. Los ríos sin canal muestran **Estación pendiente** hasta que se configure una fuente IoT propia.
-
-## Pruebas
-
-```powershell
+npm ci
 npm test
+npm run build:github
+npm run local
 ```
+
+Abrir http://localhost:4173. Inicia broker **Aedes de pruebas** en loopback:1883, backend:8787 y web:4173. Sin ESP32, la pantalla muestra servidor conectado y sin telemetría. No se inventan mediciones. Ctrl+C detiene los procesos.
+
+Para una demostración explícita, en otra terminal:
+
+```powershell
+npm run simulate
+```
+
+En «Configurar conexión»: estación `sim-tingomaria-01`, URL `http://127.0.0.1:8787`. Se muestra **SIMULACIÓN · DATOS DE PRUEBA**. Modos opcionales: `$env:SIM_MODE='critical'` o `'invalid'`. Para volver al equipo físico, seleccionar `tingomaria-01` y detener el simulador.
+
+## Preparación para el ESP32
+
+La configuración local con TLS, CA y cuentas separadas ya está generada en archivos privados. Se conservó el Wi-Fi existente por indicación del usuario. El sketch fue movido por Arduino a `iot_code/09_Codigo_Final_Proyecto/09_Codigo_Final_Proyecto.ino`; los scripts usan esa ubicación.
+
+```powershell
+npm run check:hardware
+npm run verify:hardware
+npm run hardware
+```
+
+El último comando inicia broker TLS, backend y web para la placa, sin simulaciones. El PC y el ESP32 deben compartir la red. La regla del firewall requiere una única ejecución de `tools/configure-hardware-firewall.ps1` en PowerShell como administrador; no se pudo crear desde esta sesión sin elevación. Consulte [Preparación de carga](docs/SITPA_04_PREPARACION_ESP32.md) antes de conectar sensores o cargar.
+
+## Componentes
+
+- `iot_code/09_Codigo_Final_Proyecto/09_Codigo_Final_Proyecto.ino`: firmware solicitado, snapshots cada 1000 ms; DHT11, FC-37 AO, ultrasónico, OLED, LEDs y buzzer originales.
+- `backend/src/`: validación MQTT, base de datos persistente, REST, WebSocket, auditoría y predicción separada.
+- `src/services/realtime.js` y `src/core/realtime-feed.js`: suscripción con reconexión; no sondeo periódico HTTP.
+- `public/sitpa-config.json`: URL pública del backend; nunca credenciales MQTT.
+- `compose.yaml`: alternativa local con Mosquitto y backend en Docker.
+- `tools/compile-firmware.ps1`: compilación ESP32 de comprobación; `-UseLocalSecrets` produce la imagen configurada. Ninguna de las dos carga la placa.
+- `tools/upload-firmware.ps1`: recompila con configuración local y carga únicamente en el COM indicado explícitamente.
+
+El contrato usa centímetros y cm/min; la web convierte nivel y edge a metros. El FC-37 solo detecta lluvia, no cuantifica precipitación. La escala inicial corresponde al prototipo de 20 cm; no es una calibración de campo del río.
+
+## Pronóstico
+
+La proyección edge +3 min se muestra solo con telemetría reciente y sensor válido, identificada como extrapolación no validada. Trend Baseline 1.0.0 usa pendiente robusta sobre 30 agregados de un minuto. +5/+15/+30 min requieren evidencia temporal específica, calidad, datos recientes y límites de error aceptados. +1 a +5 h quedan deshabilitados: no hay modelos entrenados ni validaciones reales.
+
+No se suministran MAE/RMSE ni confianza inventados. El simulador no sirve para validar un modelo hidrológico.
+
+## Documentación
+
+- [Auditoría inicial](docs/SITPA_01_AUDITORIA.md)
+- [Operación, protocolo y pruebas físicas](docs/SITPA_02_OPERACION.md)
+- [Despliegue](docs/GUIA_DESPLIEGUE.md)
+- [Entrega y evidencias](docs/SITPA_03_ENTREGA.md)
+- [Preparación de carga del ESP32 y credenciales locales](docs/SITPA_04_PREPARACION_ESP32.md)
+
+GitHub Pages aloja solo el frontend; el backend requiere alojamiento independiente. Se conservó el Wi-Fi guardado por solicitud del usuario; su renovación y la de la antigua clave ThingSpeak siguen pendientes antes de producción. Las cuentas MQTT son nuevas. `secrets.h`, `.env`, `.local-mqtt`, bases de datos y binarios están ignorados y no se publican.

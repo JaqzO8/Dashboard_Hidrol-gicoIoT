@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { extname, relative, resolve } from "node:path";
+import { dirname, extname, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -9,6 +9,7 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const dist = resolve(root, "dist");
 const client = resolve(root, ".sites-client");
 const vite = resolve(root, "node_modules", "vite", "bin", "vite.js");
+if ([dist, client].some(path => dirname(path) !== root)) throw new Error("Directorio de compilación fuera del proyecto");
 
 await rm(dist, { recursive: true, force: true });
 await rm(client, { recursive: true, force: true });
@@ -35,6 +36,13 @@ const mime = {
 };
 
 const assets = {};
+const siteConfig = JSON.parse(await readFile(resolve(root, "public", "sitpa-config.json"), "utf8"));
+let backendOrigins = "";
+if (siteConfig.apiBaseUrl) {
+  const api = new URL(siteConfig.apiBaseUrl);
+  if (api.protocol !== "https:" || api.username || api.password) throw new Error("El build Sites requiere URL de backend HTTPS sin credenciales");
+  backendOrigins = `${api.origin} ${api.origin.replace("https:", "wss:")}`;
+}
 for (const file of await filesWithin(client)) {
   const pathname = `/${relative(client, file).replaceAll("\\", "/")}`;
   assets[pathname] = {
@@ -55,7 +63,7 @@ export default {
     return new Response(decode(asset.body), { headers: {
       "content-type": asset.type,
       "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
-      "content-security-policy": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.thingspeak.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' ${backendOrigins}; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       "referrer-policy": "strict-origin-when-cross-origin",
       "x-content-type-options": "nosniff"
     }});

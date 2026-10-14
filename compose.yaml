@@ -1,0 +1,21 @@
+services:
+  broker:
+    image: eclipse-mosquitto:2
+    ports: ["127.0.0.1:1883:1883"]
+    volumes:
+      - ./backend/broker/mosquitto.local.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports: ["127.0.0.1:8787:8787"]
+    environment:
+      MQTT_URL: mqtt://broker:1883
+      DATABASE_URL: sqlite:./data/sitpa.sqlite
+      CORS_ORIGIN: http://localhost:4173,http://localhost:5173
+    volumes: ["telemetry-data:/app/backend/data"]
+    depends_on: [broker]
+volumes:
+  mqtt-data:
+  telemetry-data:

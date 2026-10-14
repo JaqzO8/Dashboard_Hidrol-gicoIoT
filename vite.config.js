@@ -6,9 +6,10 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   base: "./",
+  server: { host: "127.0.0.1", fs: { deny: ["**/.env*", "**/.git/**", "**/.tools/**", "**/.local-mqtt/**", "**/iot_code/**", "**/backend/**", "**/*.{crt,pem,key}"] } },
   build: {
     target: "es2022",
-    sourcemap: true,
+    sourcemap: false,
     rollupOptions: {
       input: {
         index: resolve(root, "index.html"),

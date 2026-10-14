@@ -1,0 +1,12 @@
+.git
+node_modules
+**/node_modules
+**/secrets.h
+**/.env
+.tools
+backend/data
+_site
+dist
+iot_code
+qa-artifacts
+.local-mqtt
