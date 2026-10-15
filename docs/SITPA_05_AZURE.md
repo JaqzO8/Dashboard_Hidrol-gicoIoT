@@ -36,6 +36,16 @@ La imagen configurada contiene credenciales: no publicarla. Quedan pendientes ca
 
 ## Operación
 
+### Interfaz pública y avisos móviles
+
+La página conserva los colores azul y blanco y presenta el estado del río con lenguaje sencillo. No incluye formulario de conexión ni acepta los antiguos ajustes de estación o URL del navegador. `public/sitpa-config.json` fija el destino del despliegue; `GET /api/v1/public-config` publica únicamente la estación y los tiempos definidos en el backend. Este endpoint no admite modificaciones. Las credenciales MQTT siguen exclusivamente en el servidor y el ESP32.
+
+Los avisos Web Push se activan voluntariamente en cada dispositivo. Las claves VAPID se guardan en `/etc/sitpa/push.env` con permisos 600; `tools/azure-enable-push.mjs` prepara el archivo sin sobrescribir claves existentes. Las suscripciones se guardan en SQLite y requieren un token para cambiarlas o eliminarlas. El botón de prueba envía solo al dispositivo que lo solicita, con límite de una vez por minuto.
+
+Las notificaciones automáticas requieren datos reales recientes y un sensor válido; excluyen simulaciones. Los umbrales siguen siendo los del prototipo y no constituyen una alerta oficial ni garantizan anticipación. Falta comprobar la recepción en un teléfono físico y realizar la calibración con el ESP32 y sensores. En iPhone debe abrirse la aplicación desde la pantalla de inicio. La entrega también depende de los permisos, conexión y sistema del dispositivo.
+
+Verificación de esta actualización: 31 pruebas locales aprobadas, incluidos permisos de suscripciones, exclusión de datos inválidos y configuración pública de solo lectura.
+
 - Estado: `sudo systemctl status sitpa-backend mosquitto nginx`.
 - Logs: `sudo journalctl -u sitpa-backend --since today`.
 - Backup manual: `sudo systemctl start sitpa-backup.service`.

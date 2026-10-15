@@ -6,10 +6,12 @@ import { TelemetryStore } from "./database.js";
 import { validateTelemetry, STATION_PATTERN } from "./validation.js";
 import { configFromEnv } from "./config.js";
 import { PredictionService, unavailableForecast } from "./prediction.js";
+import { PushAlerts } from './push.js';
 
 export async function createBackend(config, dependencies = {}) {
   if (!(config.liveMs > 0 && config.staleMs > config.liveMs)) throw new Error("Umbrales de freshness inválidos");
   const store = dependencies.store || new TelemetryStore(config.databasePath);
+  const push = new PushAlerts(store.db);
   const predictions = dependencies.predictions || new PredictionService({ validationFile: config.validationFile, liveMs: config.liveMs });
   const statuses = new Map();
   const disconnectedStations = new Set();
@@ -51,17 +53,39 @@ export async function createBackend(config, dependencies = {}) {
     res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
     res.end(JSON.stringify(value));
   };
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
     if (origin && !origins.has(origin)) return sendJson(res, 403, { error: "origin_not_allowed" });
     if (origin) { res.setHeader("Access-Control-Allow-Origin", origin); res.setHeader("Vary", "Origin"); }
-    if (req.method === "OPTIONS") { res.setHeader("Access-Control-Allow-Methods", "GET"); return sendJson(res, 204, null); }
+    if (req.method === "OPTIONS") { res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE"); res.setHeader('Access-Control-Allow-Headers','Content-Type'); return sendJson(res, 204, null); }
+    if (req.url === '/api/v1/push/config' && req.method === 'GET') return sendJson(res,200,{enabled:push.enabled,publicKey:push.enabled?push.publicKey:null});
+    if (['/api/v1/push/subscriptions','/api/v1/push/test'].includes(req.url) && ['POST','DELETE'].includes(req.method)) {
+      if(!origin || !origins.has(origin)) return sendJson(res,403,{error:'origin_required'});
+      if(!push.enabled) return sendJson(res,503,{error:'push_unavailable'});
+      if(!req.headers['content-type']?.startsWith('application/json')) return sendJson(res,415,{error:'json_required'});
+      try {
+        let body='';
+        for await(const chunk of req) { body+=chunk; if(Buffer.byteLength(body)>8192) { sendJson(res,413,{error:'too_large'}); return; } }
+        const input=JSON.parse(body);
+        if(req.url==='/api/v1/push/test') {
+          if(req.method!=='POST') return sendJson(res,405,{error:'method_not_allowed'});
+          await push.test(input.endpoint,input.token); return sendJson(res,200,{ok:true});
+        }
+        if(req.method==='DELETE') { push.remove(input.endpoint,input.token); return sendJson(res,200,{ok:true}); }
+        if(!stationAllowed(input.stationId)) return sendJson(res,400,{error:'invalid_station'});
+        return sendJson(res,201,{token:push.subscribe(input.stationId,input.subscription,input.token)});
+      } catch { return sendJson(res,400,{error:'invalid_subscription'}); }
+    }
     if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" });
     try {
       const url = new URL(req.url, "http://localhost");
       if (url.pathname === "/healthz") {
         try { databaseHealthy = store.healthy(); } catch { databaseHealthy = false; }
         return sendJson(res, databaseHealthy && brokerConnected ? 200 : 503, { service: "SITPA", database: databaseHealthy, mqtt: brokerConnected });
+      }
+      if (url.pathname === "/api/v1/public-config") {
+        return sendJson(res, 200, { stationId: config.stationIds.find(id => !id.startsWith("sim-")) || null,
+          liveMs: config.liveMs, staleMs: config.staleMs });
       }
       const match = url.pathname.match(/^\/api\/v1\/stations\/([a-z0-9-]+)\/(latest|history|status|forecast)$/);
       if (!match || !stationAllowed(match[1])) return sendJson(res, 404, { error: "not_found" });
@@ -150,6 +174,7 @@ export async function createBackend(config, dependencies = {}) {
       const prediction = forecast(station, saved);
       if (prediction.horizons.some(h => h.available)) audit("forecast_generated", station, { model: prediction.model, version: prediction.version });
       broadcast({ type: "telemetry", stationId: station, reading: saved, status: status(station), forecast: prediction }, station);
+      push.notify(saved);
     } catch {
       databaseHealthy = false; console.error("SITPA: telemetry_storage_failure");
       broadcast({ type: "error", error: "storage_unavailable" });
@@ -182,6 +207,7 @@ export async function createBackend(config, dependencies = {}) {
       await new Promise(resolve => wss.close(resolve));
       await client.endAsync(true);
       await new Promise(resolve => server.close(resolve));
+      await push.close();
       store.close();
     } };
 }

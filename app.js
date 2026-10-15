@@ -1,7 +1,8 @@
+import { enableMobileAlerts, disableMobileAlerts, mobileAlertsActive, testMobileAlert } from "./src/services/mobile-alerts.js";
 import "./src/ui/shell.js";
 import { PERU_RIVERS } from "./data/peru-rivers.js";
 import { RealtimeFeedController } from "./src/core/realtime-feed.js";
-import { fetchHistory, telemetryFreshness, validateApiBase } from "./src/services/realtime.js";
+import { fetchHistory, telemetryFreshness } from "./src/services/realtime.js";
 import { renderForecast } from "./src/ui/forecast.js";
 
 const DEFAULT_STATION = "tingomaria-01";
@@ -104,19 +105,10 @@ const fmtDate = (date, compact = false) => {
 };
 
 const selectedRiverName = () => sessionStorage.getItem("selectedRiver") || DEFAULT_RIVER;
-const customStations = () => {
-  try {
-    return JSON.parse(sessionStorage.getItem("sitpaRiverStations") || "{}");
-  } catch {
-    return {};
-  }
-};
-
 const currentConfig = () => {
   const river = selectedRiverName();
   const base = riverMeta(river);
-  const custom = customStations()[river] || {};
-  return { river, ...base, stationId: custom.stationId || base.stationId, apiBaseUrl: sessionStorage.getItem("sitpa.apiBaseUrl") || runtimeConfig.apiBaseUrl, results: Number($("rangeSelect")?.value || 100) };
+  return { river, ...base, apiBaseUrl: runtimeConfig.apiBaseUrl, results: Number($("rangeSelect")?.value || 100) };
 };
 
 async function loadData(showFeedback = false) {
@@ -140,8 +132,6 @@ function renderRiverContext(name) {
   if ($("sideChannel")) $("sideChannel").textContent = configuredStation ? `Estación ${configuredStation}` : "Estación pendiente";
   if ($("heroLocation")) $("heroLocation").textContent = `📍 ${name} · ${meta.locality}`;
   if ($("heroBasin")) $("heroBasin").textContent = `◷ Región hidrográfica ${meta.region}`;
-  if ($("settingsRiver")) $("settingsRiver").textContent = name;
-  if ($("settingsLocality")) $("settingsLocality").textContent = `${meta.locality} · ${meta.region}`;
   if ($("riverSelect") && $("riverSelect").value !== name) $("riverSelect").value = name;
 }
 
@@ -152,22 +142,22 @@ function renderUnavailableRiver() {
   if ($("levelValue")) $("levelValue").textContent = "—";
   if ($("levelTrend")) $("levelTrend").textContent = "Esperando la conexión de la estación y sus sensores";
   if ($("systemStatus")) {
-    $("systemStatus").textContent = currentConfig().stationId ? "Sin telemetría" : "Sin estación";
+    $("systemStatus").textContent = currentConfig().stationId ? "Sin mediciones recientes" : "Sin estación";
     $("systemStatus").style.color = "#88a8b3";
   }
-  if ($("statusDescription")) $("statusDescription").textContent = "Sin lecturas disponibles. La estación debe estar conectada y publicar telemetría.";
+  if ($("statusDescription")) $("statusDescription").textContent = "Todavía no hay mediciones. Estamos preparando esta estación.";
   ["kpiLevel", "kpiRain", "kpiTemp", "kpiHum", "kpiSpeed", "avgLevel", "maxLevel"].forEach((id) => {
     if ($(id)) $(id).textContent = "—";
   });
-  if ($("kpiLevelDelta")) $("kpiLevelDelta").textContent = "Telemetría pendiente";
+  if ($("kpiLevelDelta")) $("kpiLevelDelta").textContent = "Medición pendiente";
   if ($("kpiRainState")) $("kpiRainState").textContent = "Sin lectura del sensor";
   if ($("insightTitle")) $("insightTitle").textContent = "Este río está listo para incorporarse.";
-  if ($("insightText")) $("insightText").textContent = "Sin lecturas disponibles. La estación debe estar conectada y publicar telemetría.";
+  if ($("insightText")) $("insightText").textContent = "Todavía no hay mediciones. Estamos preparando esta estación.";
   if ($("lastUpdated")) $("lastUpdated").textContent = "—";
   if ($("entryCount")) $("entryCount").textContent = "0 lecturas";
   if ($("downloadCsv")) $("downloadCsv").textContent = "Exportar CSV (0 lecturas)";
   if ($("recordsBody")) {
-    $("recordsBody").innerHTML = '<tr><td colspan="9" class="empty">Sin lecturas disponibles. La estación debe estar conectada y publicar telemetría.</td></tr>';
+    $("recordsBody").innerHTML = '<tr><td colspan="9" class="empty">Todavía no hay mediciones. Estamos preparando esta estación.</td></tr>';
   }
   renderLimnimeter(null);
   charts.forEach((instance) => instance.clear());
@@ -192,7 +182,7 @@ function renderRiverDirectory(query = "") {
     $("riverResults").innerHTML = matches.length
       ? matches.map((name) => {
           const meta = riverMeta(name);
-          const hasStation = Boolean(meta.stationId || customStations()[name]?.stationId);
+          const hasStation = Boolean(meta.stationId);
           return `<button class="river-result ${name === selected ? "active" : ""}" type="button" data-river="${name.replaceAll('"', "&quot;")}"><span><strong>${name}</strong><small>${meta.locality} · ${meta.region}</small></span><span class="station-state ${hasStation ? "live" : ""}">${hasStation ? "CONFIGURADA" : "PENDIENTE"}</span></button>`;
         }).join("")
       : '<div class="empty">No se encontraron ríos con ese nombre.</div>';
@@ -202,7 +192,7 @@ function renderRiverDirectory(query = "") {
 
 function initializeRiverCatalog() {
   if ($("riverCount")) $("riverCount").textContent = PERU_RIVERS.length.toLocaleString("es-PE");
-  if ($("activeStationCount")) $("activeStationCount").textContent = String(1 + Object.entries(customStations()).filter(([name, station]) => name !== DEFAULT_RIVER && station?.stationId).length);
+  if ($("activeStationCount")) $("activeStationCount").textContent = String(PERU_RIVERS.filter(name => riverMeta(name).stationId).length);
   if ($("riverSelect")) {
     $("riverSelect").innerHTML = PERU_RIVERS.map((name) => `<option value="${name.replaceAll('"', "&quot;")}">${name}${name === DEFAULT_RIVER ? " · CONFIGURADA" : ""}</option>`).join("");
     $("riverSelect").value = selectedRiverName();
@@ -243,12 +233,13 @@ function checkDataFreshness() {
   const validSensor = latest?.quality?.levelValid === true && latest.sensorAgeMs.level <= 3000;
   const climateValid = latest?.quality?.climateValid === true && latest.sensorAgeMs.climate <= 10000;
   for (const id of ["kpiTemp", "kpiHum"]) if ($(id)) $(id).title = climateValid ? "Última medición válida" : "Último valor conservado; sensor sin lectura válida reciente";
-  if (latest && $("statusDescription")) $("statusDescription").textContent = !validSensor ? "Fallo o antigüedad del sensor de nivel: se conserva el último estado recibido." : freshness !== "live" ? "Último estado recibido; telemetría desactualizada." : (STATUS[latest.status]?.description || "Estado sin catalogar");
+  if (latest && $("statusDescription")) $("statusDescription").textContent = !validSensor ? "Fallo o antigüedad del sensor de nivel: se conserva el último estado recibido." : freshness !== "live" ? "Último estado recibido; telemetría desactualizada." : (STATUS[latest.status]?.description || "Estado no disponible");
   if ($("sensorState")) $("sensorState").textContent = latest && !validSensor ? "SENSOR DE NIVEL SIN LECTURA VÁLIDA" : "";
   setConnectionState(freshness === "live" && connected ? "online" : freshness === "delayed" ? "delayed" : "offline",
-    !configured ? "Estación pendiente de conexión" : !connected ? "Reconectando al servidor" : freshness === "live" ? "Telemetría en vivo" : freshness === "delayed" ? "Telemetría retrasada" : "Sin telemetría");
+    !configured ? "Estación pendiente de conexión" : !connected ? "Reconectando al servidor" : freshness === "live" ? "Mediciones actualizadas" : freshness === "delayed" ? "Mediciones con retraso" : "Sin mediciones recientes");
   if (!connected || freshness !== "live" || !validSensor) renderForecast(null, latest, !configured ? "Estación pendiente de conexión y mediciones reales" : "Telemetría desactualizada, sensor inválido o servidor desconectado");
   else renderForecast(lastForecast, latest);
+  updatePublicStatus(latest, connected, freshness, validSensor);
   if ((!connected || freshness !== "live") && $("alertBanner")) $("alertBanner").hidden = true;
 }
 
@@ -274,18 +265,27 @@ function alertsAreEnabled() {
 }
 
 function updateNotificationStatus() {
-  const status = $("notificationStatus");
-  const button = $("enableAlerts");
-  if (!status || !button) return;
-  if (alertsAreEnabled()) {
-    status.textContent = "Alertas activas: aviso visual, sonido y notificación del navegador.";
-    button.textContent = "Alertas activas";
-    button.disabled = true;
-  } else if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-    status.textContent = "Notificaciones bloqueadas por el navegador. Habilítalas en los permisos del sitio.";
-    button.textContent = "Permiso bloqueado";
-    button.disabled = true;
-  }
+  const status=$("notificationStatus"), button=$("enableAlerts");
+  if(!status || !button) return;
+  const active=mobileAlertsActive();
+  status.textContent=active ? "Avisos activados para la estación Huallaga en este dispositivo. La estación todavía está en preparación." : "Requieren Internet y permiso del navegador. En iPhone, añade primero SITPA a la pantalla de inicio.";
+  button.hidden=active;
+  if($("disableAlerts")) $("disableAlerts").hidden=!active;
+  if($("testAlert")) $("testAlert").hidden=!active;
+}
+function updatePublicStatus(latest, connected, freshness, valid) {
+  if(!$("publicStatus")) return;
+  $("publicRiver").textContent=currentConfig().river;
+  const usable=connected && freshness==="live" && valid && !latest?.simulation;
+  const messages=[
+    ["Sin cambios de aviso en esta medición", "La estación mide un nivel por debajo de sus límites de aviso.", "Mantente informado. Una medición no garantiza que no exista riesgo."],
+    ["El nivel requiere atención", "La estación ha alcanzado el primer nivel de atención.", "Consulta los avisos locales y mantente atento a los próximos cambios."],
+    ["Se detectó un nivel alto", "La estación ha alcanzado un nivel de aviso.", "Evita acercarte a la ribera y sigue las indicaciones de las autoridades locales."],
+    ["Se detectó un nivel muy alto", "La estación ha alcanzado su nivel de aviso más alto.", "Prioriza tu seguridad y sigue las indicaciones de las autoridades locales."]
+  ];
+  const message=usable ? messages[latest.status] : ["Aún no podemos conocer el estado del río", latest ? "Las últimas mediciones ya no son recientes o no se pueden confirmar." : "Estamos preparando la estación. Todavía no hay mediciones disponibles.", "Consulta los avisos de las autoridades de tu localidad. La ausencia de datos no significa que no exista riesgo."];
+  $("publicStatus").dataset.state=usable?String(latest.status):"unknown";
+  ["publicTitle","publicMeaning","publicAction"].forEach((id,i)=>$(id).textContent=message[i]);
 }
 
 function soundAlert(level) {
@@ -305,7 +305,7 @@ function soundAlert(level) {
 }
 
 async function sendBrowserNotification(title, body, tag) {
-  if (!alertsAreEnabled()) return;
+  if (!alertsAreEnabled() || mobileAlertsActive()) return;
   const registration = await navigator.serviceWorker?.ready.catch(() => null);
   if (registration) {
     await registration.showNotification(title, { body, icon: "sitpa-logo.jpg", tag, renotify: true });
@@ -326,7 +326,7 @@ function evaluateAndEmitAlert(reading) {
 
   const critical = alertLevel === "critical";
   const title = critical ? "ALERTA ROJA" : "ALERTA DE NIVEL ALTO";
-  const body = `${currentConfig().river}: nivel ${fmt(reading.level)} m · Entry #${reading.entryId}. ${critical ? "Atención inmediata." : "Active el protocolo preventivo."}`;
+  const body = `${currentConfig().river}: nivel ${fmt(reading.level)} m · ${critical ? "Atención inmediata." : "Consulta los avisos de las autoridades locales."}`;
   if (banner) {
     banner.hidden = false;
     banner.className = `alert-banner ${alertLevel}`;
@@ -344,22 +344,10 @@ function evaluateAndEmitAlert(reading) {
 }
 
 async function enableAlerts() {
-  if (typeof Notification === "undefined") {
-    toast("Este navegador no admite notificaciones del sistema", true);
-    return;
-  }
-  const permission = await Notification.requestPermission();
-  if (permission === "granted") {
-    localStorage.setItem("sitpa.notifications", "enabled");
-    alertAudioContext ||= new AudioContext();
-    await alertAudioContext.resume();
-    updateNotificationStatus();
-    toast("Alertas de SITPA activadas");
-    if (feeds.length) evaluateAndEmitAlert(feeds.at(-1));
-  } else {
-    updateNotificationStatus();
-    toast("No se concedió permiso para notificaciones", true);
-  }
+  const button=$("enableAlerts"); if(button) button.disabled=true;
+  try { await enableMobileAlerts({...currentConfig(),stationId:riverMeta(DEFAULT_RIVER).stationId}); updateNotificationStatus(); toast("Avisos activados en este dispositivo"); }
+  catch(error){ if($("notificationStatus")) $("notificationStatus").textContent=error.message; toast(error.message,true); }
+  finally { if(button) button.disabled=false; }
 }
 
 function render() {
@@ -370,7 +358,7 @@ function render() {
   }
   const last = feeds.at(-1);
   const previous = feeds.at(-2);
-  const state = STATUS[last.status] || { label: `Código ${last.status ?? "—"}`, description: "Estado sin catalogar", color: "#88a8b3" };
+  const state = STATUS[last.status] || { label: `Código ${last.status ?? "—"}`, description: "Estado no disponible", color: "#88a8b3" };
   const delta = previous && Number.isFinite(last.level) && Number.isFinite(previous.level) ? last.level - previous.level : null;
 
   if ($("levelValue")) $("levelValue").textContent = fmt(last.level);
@@ -596,7 +584,7 @@ async function loadHistory(older = false) {
 }
 
 function updateLiveState(state) {
-  if ($("refreshStatus")) $("refreshStatus").textContent = state === "connected" ? "Suscripción WebSocket activa" : state === "unconfigured" ? "Estación pendiente de conexión" : state === "connecting" ? "Conectando al servidor…" : "Reconexión automática";
+  if ($("refreshStatus")) $("refreshStatus").textContent = state === "connected" ? "Información conectada" : state === "unconfigured" ? "Estación pendiente de conexión" : state === "connecting" ? "Conectando al servidor…" : "Reconexión automática";
   checkDataFreshness();
 }
 function createLiveFeed() {
@@ -620,37 +608,11 @@ if (typeof document !== "undefined") {
   if ($("riverSelect")) $("riverSelect").addEventListener("change", (event) => selectRiver(event.target.value));
   if ($("riverSearch")) $("riverSearch").addEventListener("input", (event) => renderRiverDirectory(event.target.value));
 
-  const showSettings = () => {
-    renderRiverContext(selectedRiverName());
-    if ($("channelInput")) $("channelInput").value = currentConfig().stationId;
-    if ($("apiKeyInput")) $("apiKeyInput").value = currentConfig().apiBaseUrl;
-    if ($("settingsDialog")) $("settingsDialog").showModal();
-  };
-  if ($("openSettings")) $("openSettings").addEventListener("click", showSettings);
-  if ($("mobileSettings")) $("mobileSettings").addEventListener("click", showSettings);
   if ($("enableAlerts")) $("enableAlerts").addEventListener("click", enableAlerts);
   if ($("dismissAlert")) $("dismissAlert").addEventListener("click", () => { $("alertBanner").hidden = true; });
   updateNotificationStatus();
-
-  if ($("settingsForm")) {
-    $("settingsForm").addEventListener("submit", (event) => {
-      event.preventDefault();
-      if (event.submitter?.value === "cancel") { $("settingsDialog").close(); return; }
-      const river = selectedRiverName();
-      const stations = customStations();
-      try {
-        const apiBaseUrl = validateApiBase($("apiKeyInput").value.trim(), location.protocol);
-        const stationId = $("channelInput").value.trim();
-        if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(stationId)) throw new Error("ID de estación inválido");
-        stations[river] = { stationId };
-        sessionStorage.setItem("sitpa.apiBaseUrl", apiBaseUrl);
-      } catch (error) { toast(error.message, true); return; }
-      sessionStorage.setItem("sitpaRiverStations", JSON.stringify(stations));
-      if ($("settingsDialog")) $("settingsDialog").close();
-      initializeRiverCatalog();
-      loadData(true);
-    });
-  }
+  if($("disableAlerts")) $("disableAlerts").addEventListener("click", async()=>{try{await disableMobileAlerts();updateNotificationStatus();}catch(e){toast(e.message,true);}});
+  if($("testAlert")) $("testAlert").addEventListener("click",()=>testMobileAlert().then(()=>toast('Prueba enviada. Revisa las notificaciones de tu dispositivo.')).catch(e=>toast(e.message,true)));
 
   window.addEventListener("resize", () => charts.forEach((c) => c.resize()));
   for (const [id, fn] of [["historyLoad", () => loadHistory()], ["historyOlder", () => loadHistory(true)], ["historyLive", () => { historyAbort?.abort(); historyRows = null; historyCursor = null; render(); if ($("historyStatus")) $("historyStatus").textContent = "Ventana en vivo"; }]]) $(id)?.addEventListener("click", fn);
@@ -658,10 +620,17 @@ if (typeof document !== "undefined") {
   // Este reloj solo actualiza etiquetas; nunca consulta la red.
   const freshnessTimer = setInterval(checkDataFreshness, 500);
   window.addEventListener("pagehide", () => { clearInterval(freshnessTimer); liveFeed.stop(); historyAbort?.abort(); });
-  fetch("sitpa-config.json").then(r => r.ok ? r.json() : {}).then(config => {
+  fetch("sitpa-config.json", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(async config => {
     runtimeConfig = { ...runtimeConfig, ...config };
-    if (!(runtimeConfig.liveMs > 0 && runtimeConfig.staleMs > runtimeConfig.liveMs)) { runtimeConfig.liveMs = 3000; runtimeConfig.staleMs = 10000; }
     if (!runtimeConfig.apiBaseUrl && ["localhost", "127.0.0.1"].includes(location.hostname)) runtimeConfig.apiBaseUrl = "http://127.0.0.1:8787";
+    // Configuración de solo lectura administrada en el servidor; no hay overrides del visitante.
+    const response = await fetch(`${runtimeConfig.apiBaseUrl}/api/v1/public-config`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error("Configuración no disponible");
+    const publicConfig = await response.json();
+    runtimeConfig.stationId = publicConfig.stationId;
+    runtimeConfig.liveMs = publicConfig.liveMs;
+    runtimeConfig.staleMs = publicConfig.staleMs;
+    if (!(runtimeConfig.liveMs > 0 && runtimeConfig.staleMs > runtimeConfig.liveMs)) { runtimeConfig.liveMs = 3000; runtimeConfig.staleMs = 10000; }
     if (runtimeConfig.stationId) RIVER_DETAILS[DEFAULT_RIVER].stationId = runtimeConfig.stationId;
   }).catch(() => {}).finally(() => loadData());
 }

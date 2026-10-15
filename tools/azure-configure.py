@@ -72,6 +72,7 @@ User=sitpa
 Group=sitpa
 WorkingDirectory=/opt/sitpa/backend
 EnvironmentFile=/etc/sitpa/backend.env
+EnvironmentFile=-/etc/sitpa/push.env
 ExecStart=/usr/local/bin/node src/server.js
 Restart=always
 RestartSec=3

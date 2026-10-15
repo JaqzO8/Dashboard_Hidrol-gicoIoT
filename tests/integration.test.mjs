@@ -27,6 +27,10 @@ test("MQTT → SQLite → WebSocket/REST: cadencia, fallos, recuperación y Last
   t.after(async () => { ws?.terminate(); await publisher.endAsync(true); await backend.close(); await broker.close(); });
   await once(publisher, "connect");
   await until(async () => (await fetch(`${base}/healthz`)).ok);
+  const publicConfig = await (await fetch(`${base}/api/v1/public-config`)).json();
+  assert.deepEqual(publicConfig, { stationId: "tingomaria-01", liveMs: 3000, staleMs: 10000 });
+  assert.equal((await fetch(`${base}/api/v1/public-config`, { method: "POST", body: JSON.stringify({ stationId: "changed" }) })).status, 405);
+  assert.deepEqual(await (await fetch(`${base}/api/v1/public-config`)).json(), publicConfig);
   const messages = [];
   ws = new WebSocket(wsUrl, { origin: "http://localhost:4173" });
   ws.on("message", data => messages.push({ ...JSON.parse(data), receivedAt: Date.now() }));
