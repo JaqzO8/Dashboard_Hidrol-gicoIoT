@@ -4,7 +4,7 @@ import { PERU_RIVERS } from "./data/peru-rivers.js";
 import { RealtimeFeedController } from "./src/core/realtime-feed.js";
 import { fetchHistory, telemetryFreshness } from "./src/services/realtime.js";
 import { renderForecast } from "./src/ui/forecast.js";
-import { prototypeOutlook, prototypeMessage, LEVEL_NAMES } from './shared/prototype.js';
+import { prototypeOutlook, prototypeMessage, LEVEL_NAMES, onsiteAlert } from './shared/prototype.js';
 import { environmentStates, environmentMessage } from './shared/environment.js';
 import { renderPrototypeChart } from './src/ui/prototype-chart.js';
 
@@ -241,6 +241,14 @@ function checkDataFreshness() {
   const validSensor = latest?.quality?.levelValid === true && latest.sensorAgeMs.level <= 3000;
   const climateValid = latest?.quality?.climateValid === true && latest.sensorAgeMs.climate <= 10000;
   for (const id of ["kpiTemp", "kpiHum"]) if ($(id)) $(id).title = climateValid ? "Última medición válida" : "Último valor conservado; sensor sin lectura válida reciente";
+  const current=connected && freshness==='live' && !latest?.simulation;
+  if($("kpiTemp")) $("kpiTemp").textContent=current&&climateValid?`${fmt(latest.temp,1)} °C`:"—";
+  if($("kpiHum")) $("kpiHum").textContent=current&&climateValid?`${fmt(latest.hum,1)} %`:"—";
+  if($("kpiSpeed")) $("kpiSpeed").textContent=current&&validSensor&&Number.isFinite(latest.speed)?`${fmt(latest.speed,1)} cm/min`:"—";
+  const rainCurrent=current && Number.isFinite(latest?.sensorAgeMs?.rain) && latest.sensorAgeMs.rain<=3000;
+  if($("kpiRain")) $("kpiRain").textContent=rainCurrent?(latest.rain===1?"Mojado":"Seco"):"—";
+  if($("kpiRainState")) $("kpiRainState").textContent=rainCurrent?"Estado de la placa":"Sin medición reciente";
+  if(!current || !validSensor) if($("kpiLevelDelta")) $("kpiLevelDelta").textContent="Sin comparación válida";
   if (latest && $("statusDescription")) $("statusDescription").textContent = !validSensor ? "Fallo o antigüedad del sensor de nivel: se conserva el último estado recibido." : freshness !== "live" ? "Último estado recibido; telemetría desactualizada." : (STATUS[latest.status]?.description || "Estado no disponible");
   if ($("sensorState")) $("sensorState").textContent = latest && !validSensor ? "SENSOR DE NIVEL SIN LECTURA VÁLIDA" : "";
   setConnectionState(freshness === "live" && connected ? "online" : freshness === "delayed" ? "delayed" : "offline",
@@ -301,10 +309,10 @@ function updateNotificationStatus() {
 }
 function updatePublicStatus(latest, connected, freshness, valid) {
   if(!$("publicStatus")) return;
-  $("publicRiver").textContent=currentConfig().river;
+  $("publicRiver").textContent="Prototipo SITPA";
   const usable=connected && freshness==="live" && valid && !latest?.simulation;
   renderPrototype(latest,usable);
-  const message=usable ? [`${LEVEL_NAMES[latest.status]} · prototipo`, prototypeMessage(latest.level*100,latest.status), "Esta lectura pertenece a la maqueta de 12 cm; no describe el estado actual del río Huallaga."] : ["Sin una medición válida del prototipo", latest ? "Las últimas mediciones ya no son recientes o el sensor no puede confirmarlas." : "Esperando las mediciones del ESP32.", "Comprueba la conexión y la posición del sensor. La ausencia de datos no significa nivel normal."];
+  const message=usable ? [LEVEL_NAMES[latest.status], prototypeMessage(latest.level*100,latest.status), "Estimación a 3 minutos si se mantiene el ritmo. Estas lecturas pertenecen a la maqueta, no al río real."] : ["Sin medición válida", latest ? "Las últimas mediciones ya no son recientes o el sensor no puede confirmarlas." : "Esperando las mediciones del ESP32.", "Comprueba la conexión y la posición del sensor. La ausencia de datos no significa nivel normal."];
   $("publicStatus").dataset.state=usable?String(latest.status):"unknown";
   ["publicTitle","publicMeaning","publicAction"].forEach((id,i)=>$(id).textContent=message[i]);
 }
@@ -315,6 +323,14 @@ function renderPrototype(latest,usable) {
   $("prototypeLevel").textContent=usable?`${fmt(cm,1)} cm`:"—";
   $("prototypeFill").value=usable?Math.min(12,cm):0;
   $("prototypeFill").setAttribute('aria-valuetext',usable?`${fmt(cm,1)} de 12 centímetros`:"Sin medición válida");
+  if($("waterGauge")) {
+    const height=usable?Math.max(0,Math.min(100,cm/12*100)):0;
+    $("waterFill").style.height=`${height}%`;
+    $("waterPointer").style.bottom=`${height}%`;
+    $("waterPointer").textContent=usable?`${fmt(cm,1)} cm`:"—";
+    $("waterGauge").setAttribute('aria-valuetext',usable?`${fmt(cm,1)} de 12 centímetros`:"Sin medición válida");
+    if(usable) $("waterGauge").setAttribute('aria-valuenow',Math.min(12,cm)); else $("waterGauge").removeAttribute('aria-valuenow');
+  }
   $("prototypeCapacity").textContent=usable?`${fmt(cm/12*100,0)} % de la altura máxima${cm>12?' · Capacidad superada':''}`:"Esperando datos válidos";
   if($("scaleLevel")) $("scaleLevel").textContent=usable?`${fmt(cm,1)} m`:"—";
   const outlook=usable?prototypeOutlook(cm,latest.speed):null;
@@ -344,16 +360,14 @@ function evaluateAndEmitAlert(reading) {
   if (!liveFeed?.connected || telemetryFreshness(reading.date.getTime()) !== "live" || reading.quality.levelValid !== true || reading.sensorAgeMs.level>3000 || reading.simulation) return;
   const alertLevel = deriveAlertLevel(reading.status, reading.level);
   const banner = $("alertBanner");
-  if (!alertLevel) {
-    if (banner) banner.hidden = true;
-  }
-  const title = `${LEVEL_NAMES[reading.status]} · Prototipo SITPA`;
-  const body = prototypeMessage(reading.level*100,reading.status);
-  if (banner && alertLevel) {
-    banner.hidden = false;
-    banner.className = `alert-banner ${alertLevel}`;
-    if ($("alertTitle")) $("alertTitle").textContent = title;
-    if ($("alertMessage")) $("alertMessage").textContent = body;
+  const notice=onsiteAlert(reading.level*100,reading.status,reading.speed);
+  if (banner) {
+    banner.hidden=!notice;
+    if(notice) {
+      banner.className=`alert-banner ${notice.severity}`;
+      if($("alertTitle") && $("alertTitle").textContent!==notice.title) $("alertTitle").textContent=notice.title;
+      if($("alertMessage")) $("alertMessage").textContent=notice.body;
+    }
   }
 
   const changed=lastObservedState!==reading.status;
@@ -400,8 +414,8 @@ function render() {
   if ($("kpiLevel")) $("kpiLevel").textContent = `${fmt(last.level===null?null:last.level*100,1)} cm`;
   if ($("kpiLevelDelta")) $("kpiLevelDelta").textContent = delta === null ? "Sin comparación" : `${delta >= 0 ? "+" : ""}${fmt(delta*100,1)} cm en última lectura`;
 
-  if ($("kpiRain")) $("kpiRain").textContent = last.rain === 1 ? "Detectada" : last.rain === 0 ? "Sin lluvia" : "—";
-  if ($("kpiRainState")) $("kpiRainState").textContent = last.rain !== null && last.rain > 0 ? "Evento detectado" : last.rain === 0 ? "Sin lluvia" : "Sin dato";
+  if ($("kpiRain")) $("kpiRain").textContent = last.rain === 1 ? "Mojado" : last.rain === 0 ? "Seco" : "—";
+  if ($("kpiRainState")) $("kpiRainState").textContent = last.rain !== null ? "Estado de la placa" : "Sin dato";
 
   if ($("kpiTemp")) $("kpiTemp").textContent = Number.isFinite(last.temp) ? `${fmt(last.temp, 1)} °C` : "—";
   if ($("kpiHum")) $("kpiHum").textContent = Number.isFinite(last.hum) ? `${fmt(last.hum, 1)} %` : "—";

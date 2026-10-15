@@ -16,3 +16,15 @@ export function prototypeMessage(cm, state) {
   const actions = ['El agua está por debajo del primer aviso.', 'Vigila la subida del agua.', 'Reduce o detén el llenado de la maqueta.', 'Detén el llenado y evita que el agua alcance los componentes.'];
   return `Prototipo SITPA: ${cm.toFixed(1)} de 12 cm · ${LEVEL_NAMES[state]}. ${actions[state]}`;
 }
+
+export function onsiteAlert(cm, state, rate) {
+  if (!Number.isFinite(cm) || !Number.isInteger(state) || state < 0 || state > 3) return null;
+  if (state > 0) return {
+    severity: ['','attention','warning','critical'][state],
+    title: ['','Atención: nivel elevado','Peligro: nivel alto','Peligro: nivel crítico'][state],
+    body: prototypeMessage(cm,state)
+  };
+  const outlook=prototypeOutlook(cm,rate);
+  return outlook?.approaching ? {severity:'attention',title:'Aviso anticipado: subida del agua',
+    body:`Maqueta: ${cm.toFixed(1)} cm. Si mantiene este ritmo, podría alcanzar ${outlook.nextCm} cm en ${outlook.minutes.toFixed(1)} min. Vigila el llenado.`} : null;
+}

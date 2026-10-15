@@ -1245,3 +1245,67 @@ button,.primary-button,.secondary-button { min-height:44px; }
 #prediccion .chart { min-height:320px; }
 #environmentReadings { font-size:20px; font-weight:600; }
 #environmentAlerts { color:#92400e; }
+
+/* Resumen principal: regla de agua, estado y sensores en una sola vista. */
+.dashboard-overview { border:1px solid #dce5ed; border-radius:14px; background:#fff; padding:18px; margin:16px 0 24px; box-shadow:0 4px 18px #0f172a05; }
+.overview-main { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:26px; align-items:stretch; }
+.water-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:20px 24px; min-width:0; }
+.water-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.water-heading .eyebrow { margin:0 0 4px; font-size:10px; }
+.water-heading span { color:#64748b; font-size:11px; }
+.water-heading strong { font-size:clamp(28px,3vw,44px); letter-spacing:-.04em; white-space:nowrap; color:#0f172a; font-variant-numeric:tabular-nums; }
+.river-ruler { display:grid; grid-template-columns:minmax(0,1fr) 94px; height:170px; margin:26px 0 18px; gap:18px; }
+.ruler-ticks { position:relative; font-size:11px; color:#64748b; }
+.ruler-ticks span { position:absolute; left:0; right:0; transform:translateY(50%); display:flex; gap:10px; align-items:center; font-weight:650; }
+.ruler-ticks span::after { content:''; border-top:1px dashed #dbe2e9; flex:1; }
+.ruler-ticks .critical { color:#dc2626; }.ruler-ticks .warning { color:#ea580c; }.ruler-ticks .attention { color:#b77909; }.ruler-ticks .normal { color:#16834c; }
+.ruler-track { position:relative; width:22px; border-radius:5px; background:#e2e8f0; }
+.ruler-fill { position:absolute; inset:auto 0 0; height:0; background:#0284c7; border-radius:3px; transition:height .3s ease; }
+.ruler-pointer { position:absolute; left:30px; bottom:0; transform:translateY(50%); border-radius:4px; background:#0f2943; color:white; font-size:11px; font-weight:700; padding:4px 6px; white-space:nowrap; transition:bottom .3s ease; }
+.ruler-pointer::before { content:''; position:absolute; left:-5px; top:50%; margin-top:-4px; border-width:4px 5px 4px 0; border-style:solid; border-color:transparent #0f2943 transparent transparent; }
+.water-caption { color:#475569; font-size:12px; margin:12px 0 2px; }.water-card>small { font-size:11px; color:#64748b; }
+.overview-main .public-status { border:0; border-radius:10px; box-shadow:none; padding:20px 12px; align-items:center; background:white; }
+.overview-main .status-copy h2 { font-size:clamp(28px,3.2vw,42px); margin-bottom:10px; }
+.overview-main .status-copy>p:not(.eyebrow) { font-size:14px; line-height:1.65; margin-bottom:16px; }
+.overview-main .public-status[data-state="0"] h2 { color:#16834c; }.overview-main .public-status[data-state="1"] h2 { color:#a86e09; }.overview-main .public-status[data-state="2"] h2 { color:#d85c0b; }.overview-main .public-status[data-state="3"] h2 { color:#dc2626; }
+.overview-main .public-status[data-state="unknown"] h2 { color:#64748b; }
+.trend-summary { border-left:3px solid #0ea5e9; padding-left:13px; color:#475569; font-size:13px; line-height:1.6; }
+.trend-summary p { margin:0 0 5px; }.trend-summary strong { color:#0f2943; font-size:14px; }
+.overview-main .next-step { margin-top:16px; padding-top:12px; }.overview-main .next-step p { font-size:12px; line-height:1.5; }
+.quick-readings.kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0 12px; }
+.quick-readings .kpi { padding:15px 12px; gap:10px; min-width:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:none; }
+.quick-readings .kpi>div { min-width:0; }.quick-readings .kpi span { font-size:11px; }.quick-readings .kpi strong { font-size:clamp(17px,1.8vw,25px); white-space:nowrap; margin:4px 0; }.quick-readings .kpi small { font-size:10px; }
+.quick-readings .metric-icon { display:grid; place-items:center; flex:0 0 30px; height:34px; border-radius:6px; font-size:18px; font-weight:600; }
+.metric-icon.temperature { background:#fff7ed; color:#ea580c; }.metric-icon.humidity { background:#ccfbf1; color:#0d9488; }.metric-icon.speed { background:#f0fdf4; color:#16a34a; }.metric-icon.rain { background:#eff6ff; color:#2563eb; }
+.dashboard-overview .scale-card { justify-content:space-between; flex-wrap:nowrap; padding:12px 14px; gap:20px; }.dashboard-overview .scale-card>div { display:flex; align-items:center; gap:18px; }.dashboard-overview .scale-card span { font-size:9px; max-width:155px; }.dashboard-overview .scale-card strong { font-size:23px; white-space:nowrap; }.dashboard-overview .scale-card small { flex-basis:auto; font-size:11px; max-width:340px; }
+.citizen-home .alert-banner { position:sticky; top:12px; z-index:4; animation:none; align-items:center; padding:14px 18px; margin:12px 0; box-shadow:0 5px 20px #0f172a15; }
+.alert-banner.warning { background:#fff1e8; border-color:#f97316; color:#9a3412; }.alert-banner.critical { background:#fef2f2; border-color:#dc2626; color:#991b1b; }
+.alert-icon { display:grid; place-items:center; border:2px solid currentColor; width:32px; height:32px; border-radius:50%; flex-shrink:0; font-size:21px; font-weight:800; }
+.alert-copy { flex:1; min-width:0; }.alert-banner strong { font-size:19px; }.alert-banner p { font-size:13px; line-height:1.5; }.alert-link { color:inherit; font-size:12px; font-weight:700; white-space:nowrap; padding:10px 0; }
+.citizen-home #prediccion h2 { font-size:clamp(23px,2.3vw,30px); }.citizen-home .connection-details { margin-bottom:10px; }.citizen-home .forecast-notice { margin:8px 0; font-size:12px; }
+@media(min-width:761px) and (max-width:1150px) { .quick-readings .metric-icon { display:none; }.overview-main { gap:16px; }.water-card { padding:18px; }.river-ruler { grid-template-columns:minmax(0,1fr) 85px; gap:10px; } }
+@media(max-width:760px) {
+  .citizen-home .brand-logo { width:34px; height:34px; flex-basis:34px; }.citizen-home .brand strong { font-size:20px; }.citizen-home .brand small { display:none; }
+  .citizen-home .sidebar nav { margin-top:6px; }.citizen-home main { padding:16px 14px; }.citizen-home .topbar { gap:6px; padding-bottom:10px; margin-bottom:8px; }.citizen-home .topbar h1 { font-size:19px; }.citizen-home .updated { display:flex; align-items:center; gap:8px; }.citizen-home .updated span { font-size:10px; }.citizen-home .updated strong { font-size:11px; }
+  .dashboard-overview { padding:12px; margin-top:12px; }.overview-main { grid-template-columns:1fr; gap:12px; }.water-card { padding:16px 18px; }.water-heading strong { font-size:34px; }.river-ruler { height:145px; margin:22px 0 16px; }.water-caption { margin-top:8px; }
+  .overview-main .public-status { padding:12px 6px; border-top:1px solid #e2e8f0; border-radius:0; }.overview-main .status-copy h2 { font-size:28px; }.overview-main .next-step { display:none; }.overview-main .status-copy>p:not(.eyebrow) { margin-bottom:10px; font-size:13px; }
+  .quick-readings.kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:8px; }.quick-readings .kpi strong { font-size:19px; }.quick-readings .kpi { padding:12px 10px; }.quick-readings .metric-icon { flex-basis:24px; font-size:16px; }
+  .dashboard-overview .scale-card { align-items:flex-start; flex-direction:column; gap:5px; }.dashboard-overview .scale-card span { max-width:none; }
+  .citizen-home .alert-banner { top:8px; padding:12px; gap:10px; flex-wrap:wrap; }.alert-banner strong { font-size:17px; }.alert-banner p { font-size:12px; }.alert-icon { width:25px; height:25px; font-size:17px; }.alert-link { flex-basis:100%; padding:0; text-align:right; }
+}
+@media(max-width:360px) { .quick-readings .metric-icon { display:none; }.water-heading strong { font-size:29px; } }
+@media(min-width:761px) {
+  .citizen-home main { padding:20px 28px 32px; }
+  .citizen-home .topbar { padding-bottom:10px; margin-bottom:10px; }
+  .citizen-home .forecast-notice { padding:9px 12px; }
+  .citizen-home .connection-details { margin-bottom:6px; }
+  .dashboard-overview { padding:14px; }
+  .water-card { padding:16px 20px; }
+  .water-heading strong { font-size:36px; }
+  .river-ruler { height:130px; margin:20px 0 12px; }
+  .overview-main .public-status { padding:12px; }
+  .overview-main .next-step { display:none; }
+  .quick-readings .kpi { min-height:0; padding:12px; }
+  .quick-readings .kpi strong { line-height:1.2; }
+  .dashboard-overview .scale-card { padding:9px 12px; }
+}

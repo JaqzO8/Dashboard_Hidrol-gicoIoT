@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { measuredState, prototypeOutlook } from '../shared/prototype.js';
+import { measuredState, prototypeOutlook, onsiteAlert } from '../shared/prototype.js';
 import { environmentStates } from '../shared/environment.js';
 import { reading } from './fixtures.mjs';
 test('sensores ambientales: límites, histéresis y calidad independientes del nivel',()=>{
@@ -21,4 +21,19 @@ test('maqueta: límites inclusivos y estimación separada del estado medido',()=
   assert.equal(prototypeOutlook(5,0.5).approaching,true);
   assert.equal(measuredState(3),0);
   assert.equal(prototypeOutlook(0,0.4).approaching,false);
+});
+
+test('aviso en la página: anticipación, umbrales, recuperación y datos ausentes',()=>{
+  assert.equal(onsiteAlert(3,0,0),null);
+  assert.equal(onsiteAlert(5,0,0.5).title,'Aviso anticipado: subida del agua');
+  assert.equal(onsiteAlert(5,0,-0.5),null);
+  for(const [cm,state,severity] of [[6,1,'attention'],[8,2,'warning'],[10,3,'critical']]) {
+    const notice=onsiteAlert(cm,state,0);
+    assert.equal(notice.severity,severity);
+    assert.match(notice.body,new RegExp(`${cm.toFixed(1)} de 12 cm`));
+    if(state>=2) assert.match(notice.title,/Peligro/);
+  }
+  assert.equal(onsiteAlert(4,0,0),null);
+  assert.equal(onsiteAlert(null,3,1),null);
+  assert.equal(onsiteAlert(3,9,1),null);
 });
