@@ -106,14 +106,15 @@ void redTask(void*) {
 #endif
   mqtt.setServer(MQTT_HOST, MQTT_PORT); mqtt.setBufferSize(2048);
   mqtt.setKeepAlive(15); mqtt.setSocketTimeout(2);
-  WiFi.mode(WIFI_STA); WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA); WiFi.setAutoReconnect(false);
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
     if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) Serial.printf("WiFi motivo desconexion=%u\n",info.wifi_sta_disconnected.reason);
   });
   String prefix = String("sitpa/v1/stations/") + STATION_ID;
   String statusTopic = prefix + "/status";
   String clientId = String("sitpa-") + STATION_ID + "-" + bootId;
-  uint32_t wifiAttempt = 0, mqttAttempt = 0, statusAt = 0;
+  uint32_t wifiAttempt = 0, wifiScanAt = 0, mqttAttempt = 0, statusAt = 0;
   int sentState = -1, previousWifiStatus = -1;
   bool previousMqttStatus = false, waitingForClock = false;
   bool ntpStarted = false;
@@ -125,8 +126,25 @@ void redTask(void*) {
       if (wifiStatus == WL_CONNECTED) Serial.println("WiFi conectado; comprobando hora y MQTT TLS.");
       else Serial.printf("WiFi no conectado (estado %d); alarma local continua.\n",wifiStatus);
     }
-    if (strlen(WIFI_SSID) && WiFi.status() != WL_CONNECTED && (!wifiAttempt || now - wifiAttempt >= 15000)) {
-      wifiAttempt = now; WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    if (strlen(WIFI_SSID) && WiFi.status() != WL_CONNECTED && (!wifiAttempt || now - wifiAttempt >= 30000)) {
+      // Un único responsable de reconexión: no solapar begin con el intento anterior.
+      WiFi.disconnect(false, false, 200);
+      vTaskDelay(pdMS_TO_TICKS(100));
+      if (!wifiScanAt || now - wifiScanAt >= 120000) {
+        wifiScanAt = now;
+        const int count = WiFi.scanNetworks(false, true);
+        bool found = false;
+        for (int i = 0; i < count; ++i) {
+          if (WiFi.SSID(i) == WIFI_SSID) {
+            found = true;
+            Serial.printf("WiFi red guardada visible: canal=%ld RSSI=%ld dBm seguridad=%d\n",
+              (long)WiFi.channel(i), (long)WiFi.RSSI(i), (int)WiFi.encryptionType(i));
+          }
+        }
+        if (!found) Serial.printf("WiFi red guardada no visible; redes detectadas=%d. Revisar nombre, alcance y banda 2.4 GHz.\n", count);
+        WiFi.scanDelete(); // No imprimir nombres ni identificadores de redes vecinas.
+      }
+      wifiAttempt = millis(); WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     }
     if (WiFi.status() == WL_CONNECTED && !ntpStarted) {
       configTime(0, 0, "pool.ntp.org", "time.nist.gov"); ntpStarted = true;

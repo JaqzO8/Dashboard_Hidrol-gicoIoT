@@ -46,3 +46,9 @@ Temperatura informativa desde 35 °C (regresa a normal por debajo de 33 °C) y h
 La primera carga con valores predeterminados causó reinicios; se resolvieron con `esp32:esp32:esp32:FlashMode=dio,FlashFreq=40`. Se observaron por USB lecturas del HC-SR04, DHT11 y FC-37; temperatura alrededor de 26,4–26,8 °C, humedad 74–76 %, nivel variable y transiciones de estado. La conexión Wi-Fi aún se está comprobando. No confundir carga verificada con entrega a Azure.
 
 La alarma local incorpora un pulso anticipado cuando la velocidad sostenida proyecta el cruce del siguiente umbral en 3 min; ese pulso no cambia el estado del nivel medido. La página presenta la equivalencia 1:100 como demostración y diferencia la proyección con una línea discontinua.
+
+## Verificación del despliegue del 15 de octubre
+
+La página unificada y el backend con umbrales de 6/8/10 cm están desplegados en Azure. Se verificaron HTTPS, SQLite, MQTT, las cuatro API de consulta, WebSocket y restricciones de origen; las 35 pruebas locales pasaron. El archivo de copia previo a la actualización es `/srv/sitpa/backups/before-unified-20261015T223743Z.tar.gz`.
+
+El firmware se cargó en COM3 con verificación del contenido. Se eliminaron reintentos Wi-Fi solapados; cada dos minutos sin conexión se comprueba si la red guardada es visible, sin registrar nombres de redes vecinas ni contraseñas. La prueba de arranque detectó 30 redes, pero ninguna con el nombre guardado. Azure aceptó mediante TLS la misma credencial del firmware desde el equipo. Una observación de 62 s no recibió telemetría física por Internet: falta resolver la visibilidad de la red Wi-Fi, no debe presentarse todavía como conexión ESP32–Azure completada.

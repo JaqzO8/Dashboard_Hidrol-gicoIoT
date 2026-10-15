@@ -250,12 +250,16 @@ function checkDataFreshness() {
   updatePublicStatus(latest, connected, freshness, validSensor);
   renderEnvironment(latest,connected && freshness==='live' && !latest?.simulation);
   renderPrototypeChart(feeds,connected && freshness==='live' && validSensor && !latest?.simulation);
-  if ((!connected || freshness !== "live") && $("alertBanner")) $("alertBanner").hidden = true;
+    if ((!connected || freshness !== "live" || !validSensor) && $("alertBanner")) $("alertBanner").hidden = true;
 }
 
 function renderEnvironment(latest,live) {
   if(!$("environmentReadings")) return;
-  if(!live || !latest) { $("environmentReadings").textContent="Sensores sin mediciones recientes. No se pueden confirmar lluvia, humedad ni temperatura."; return; }
+    if(!live || !latest) {
+      $("environmentReadings").textContent="Sensores sin mediciones recientes. No se pueden confirmar lluvia, humedad ni temperatura.";
+      $("environmentAlerts").textContent="Esperando mediciones válidas para evaluar los avisos ambientales.";
+      return;
+    }
   const raw={quality:latest.quality,sensorAgeMs:latest.sensorAgeMs,rainDetected:latest.rain===1,rainRaw:latest.rainRaw,humidityPct:latest.hum,temperatureC:latest.temp};
   const states=environmentStates(raw,previousEnvironment);
   $("environmentReadings").textContent=`Lluvia: ${states.rain==='unknown'?'sin lectura válida':states.rain==='wet'?'placa mojada':'placa seca'} · Humedad: ${states.humidity==='unknown'?'sin lectura válida':fmt(latest.hum,1)+' %'} · Temperatura: ${states.temperature==='unknown'?'sin lectura válida':fmt(latest.temp,1)+' °C'}`;
