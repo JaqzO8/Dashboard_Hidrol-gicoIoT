@@ -1,10 +1,11 @@
 param(
   [Parameter(Mandatory = $true)][ValidatePattern('^COM[0-9]+$')][string]$Port,
-  [string]$Fqbn = 'esp32:esp32:esp32',
-  [string]$Cli = "$PSScriptRoot/../.tools/arduino-cli/arduino-cli.exe"
+  [string]$Fqbn = 'esp32:esp32:esp32:FlashMode=dio,FlashFreq=40',
+  [string]$Cli
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath "$PSScriptRoot/..").Path
+if (-not $Cli) { $Cli = Join-Path $repoRoot '.tools/arduino-cli/arduino-cli.exe' }
 if ($Port -notin [System.IO.Ports.SerialPort]::GetPortNames()) { throw "El puerto $Port no está presente. Conecte y confirme la placa antes de cargar." }
 & (Join-Path $PSScriptRoot 'compile-firmware.ps1') -UseLocalSecrets -Fqbn $Fqbn -Cli $Cli
 if ($LASTEXITCODE -ne 0) { throw 'Compilación configurada fallida; no se cargó la placa' }

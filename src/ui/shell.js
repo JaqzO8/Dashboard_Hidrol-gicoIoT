@@ -1,9 +1,9 @@
 const pages = [
-  ["index.html", "01", "Inicio"],
-  ["red-nacional.html", "02", "Explorar ríos"],
-  ["tendencias.html", "03", "Cómo cambia el río"],
-  ["ambiente.html", "04", "Lluvia y clima"],
-  ["registros.html", "05", "Mediciones anteriores"]
+  ["#nivel", "01", "Nivel del agua"],
+  ["#prediccion", "02", "Tendencia y estimación"],
+  ["#ambiente", "03", "Lluvia y clima"],
+  ["#avisos", "04", "Avisos"],
+  ["#registros", "05", "Mediciones anteriores"]
 ];
 
 if (typeof document !== "undefined") {
@@ -17,7 +17,7 @@ if (shellRoot) {
         <img class="brand-logo" src="sitpa-logo-transparent.png" alt="Logo oficial de SITPA"><span><strong>SITPA</strong><small>Avisos del río</small></span>
       </a>
       <nav aria-label="Navegación principal">
-        ${pages.map(([href, number, label]) => `<a class="${currentPage === href ? "active" : ""}" href="${href}"><span>${number}</span>${label}</a>`).join("")}
+        ${pages.map(([href, number, label]) => `<a href="${currentPage==='index.html'?href:'index.html'+href}"><span>${number}</span>${label}</a>`).join("")}
       </nav>
       <div class="side-card">
         <span class="side-label">RÍO SELECCIONADO</span>
@@ -56,6 +56,7 @@ if (topbarRoot) {
         </div>
       </div>
     </header>
+    <p class="forecast-notice">Demostración con maqueta de 12 cm. Las mediciones no corresponden al río real.</p>
     <details class="connection-details"><summary>Estado de la conexión</summary><section class="operational-strip" aria-live="polite"><span id="serverState">SERVIDOR DESCONECTADO</span><span id="stationState">ESTACIÓN SIN CONFIRMAR</span><span id="telemetryState">SIN TELEMETRÍA</span><strong id="simulationState" hidden>SIMULACIÓN · DATOS DE PRUEBA</strong><strong id="sensorState"></strong></section></details>
     <p id="connectionNotice" class="forecast-notice" hidden>Estamos preparando esta estación. Todavía no hay información para evaluar el nivel del río.</p>`;
 }

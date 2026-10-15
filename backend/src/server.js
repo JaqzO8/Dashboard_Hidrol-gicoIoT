@@ -7,6 +7,7 @@ import { validateTelemetry, STATION_PATTERN } from "./validation.js";
 import { configFromEnv } from "./config.js";
 import { PredictionService, unavailableForecast } from "./prediction.js";
 import { PushAlerts } from './push.js';
+import { PROTOTYPE } from '../../shared/prototype.js';
 
 export async function createBackend(config, dependencies = {}) {
   if (!(config.liveMs > 0 && config.staleMs > config.liveMs)) throw new Error("Umbrales de freshness inválidos");
@@ -85,7 +86,7 @@ export async function createBackend(config, dependencies = {}) {
       }
       if (url.pathname === "/api/v1/public-config") {
         return sendJson(res, 200, { stationId: config.stationIds.find(id => !id.startsWith("sim-")) || null,
-          liveMs: config.liveMs, staleMs: config.staleMs });
+          liveMs: config.liveMs, staleMs: config.staleMs, prototype: PROTOTYPE });
       }
       const match = url.pathname.match(/^\/api\/v1\/stations\/([a-z0-9-]+)\/(latest|history|status|forecast)$/);
       if (!match || !stationAllowed(match[1])) return sendJson(res, 404, { error: "not_found" });

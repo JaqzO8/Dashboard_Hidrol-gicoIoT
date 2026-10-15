@@ -4,7 +4,8 @@ self.addEventListener('push', event => {
   let data; try { data=event.data?.json(); } catch { data=null; }
   event.waitUntil(self.registration.showNotification(data?.title || 'SITPA · Aviso', {
     body:data?.body || 'Abre SITPA para consultar la información actual.', icon:'sitpa-icon-192.png',
-    tag:data?.tag || 'sitpa', renotify:true, data:{at:data?.at}
+    tag:data?.tag || 'sitpa', renotify:true, silent:false,
+    vibrate:data?.level===3?[400,150,400,150,600]:[180,100,180], data:{at:data?.at}
   }));
 });
 self.addEventListener("notificationclick", (event) => {

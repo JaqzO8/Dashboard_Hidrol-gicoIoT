@@ -1220,3 +1220,28 @@ button,.primary-button,.secondary-button { min-height:44px; }
 }
 @media(prefers-reduced-motion:reduce){ * { scroll-behavior:auto!important; transition:none!important; } }
 @media(max-width:760px){ .sidebar nav { scrollbar-width:none; } .sidebar nav::-webkit-scrollbar { display:none; } .citizen-home .updated { border:0; padding:0; } .citizen-home .topbar { gap:10px; } }
+.prototype-panel { margin:24px 0; padding:28px; background:white; border:1px solid var(--border); border-radius:16px; }
+.prototype-panel h2 { font-size:42px; margin:4px 0 12px; font-variant-numeric:tabular-nums; }
+.prototype-panel h2 small { font-size:18px; color:var(--text-muted); }
+.prototype-panel progress { width:100%; height:18px; accent-color:var(--primary); }
+.prototype-panel>small { color:var(--text-muted); display:block; }
+.prototype-thresholds { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:20px 0; }
+.prototype-thresholds span { border-top:4px solid #16a34a; padding-top:8px; font-size:13px; }
+.prototype-thresholds span:nth-child(2) { border-color:#d97706; }
+.prototype-thresholds span:nth-child(3) { border-color:#ea580c; }
+.prototype-thresholds span:nth-child(4) { border-color:#dc2626; }
+.prototype-thresholds b { display:block; }
+.alert-banner.attention { background:#fffbeb; color:#92400e; border-color:#fbbf24; }
+@media(max-width:600px) { .prototype-panel { padding:20px; } .prototype-thresholds { grid-template-columns:1fr 1fr; } }
+.citizen-home .river-control { display:none; }
+.citizen-home .topbar { margin-bottom:16px; }
+.level-primary { border-top:4px solid var(--primary); margin-top:16px; }
+.level-primary h2 { font-size:clamp(48px,7vw,76px); line-height:1.15; color:var(--primary-hover); }
+.scale-card { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; background:#f0f9ff; padding:16px; border-radius:10px; }
+.scale-card span { font-size:11px; font-weight:700; color:#0369a1; }
+.scale-card strong { font-size:32px; color:#075985; }
+.scale-card small { flex-basis:100%; color:#475569; }
+#nivel,#prediccion,#ambiente,#avisos,#registros { scroll-margin-top:20px; }
+#prediccion .chart { min-height:320px; }
+#environmentReadings { font-size:20px; font-weight:600; }
+#environmentAlerts { color:#92400e; }

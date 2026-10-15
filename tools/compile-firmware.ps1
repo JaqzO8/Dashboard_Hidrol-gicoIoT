@@ -1,6 +1,7 @@
-param([string]$Fqbn = 'esp32:esp32:esp32', [string]$Cli = "$PSScriptRoot/../.tools/arduino-cli/arduino-cli.exe", [switch]$UseLocalSecrets)
+param([string]$Fqbn = 'esp32:esp32:esp32:FlashMode=dio,FlashFreq=40', [string]$Cli, [switch]$UseLocalSecrets)
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath "$PSScriptRoot/..").Path
+if (-not $Cli) { $Cli = Join-Path $repoRoot '.tools/arduino-cli/arduino-cli.exe' }
 New-Item -ItemType Directory -Path (Join-Path $repoRoot '.tools') -Force | Out-Null
 # Una ruta estable permite reutilizar las librerías compiladas. Impedir dos compilaciones simultáneas.
 $compileLock = [System.IO.File]::Open((Join-Path $repoRoot '.tools/firmware-compile.lock'), 'OpenOrCreate', 'ReadWrite', 'None')

@@ -21,7 +21,7 @@ export function checkAzureHardware(configurationOnly=false) {
   if(!configurationOnly) {
     const output=resolve(root,'.tools/firmware-ready');
     const manifest=JSON.parse(readFileSync(resolve(output,'sitpa-build.json'),'utf8').replace(/^\uFEFF/,''));
-    assert(manifest.configured && manifest.fqbn==='esp32:esp32:esp32');
+    assert(manifest.configured && ['esp32:esp32:esp32','esp32:esp32:esp32:FlashMode=dio,FlashFreq=40'].includes(manifest.fqbn));
     assert.equal(manifest.secretsSha256.toLowerCase(),sha(path));
     assert.equal(manifest.sourceSha256.toLowerCase(),sha(resolve(root,'iot_code/09_Codigo_Final_Proyecto/09_Codigo_Final_Proyecto.ino')));
     assert.equal(manifest.logicSha256.toLowerCase(),sha(resolve(root,'iot_code/edge_logic.h')));

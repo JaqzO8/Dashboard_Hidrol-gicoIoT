@@ -20,13 +20,13 @@ Antes de cargar: confirmar que se trata de un ESP32 clásico con estos GPIO, pue
 |---|---|
 | DHT11 | 16; lectura cada 2000 ms |
 | FC-37 AO | 36; lectura cada 500 ms; detección ADC<3000 |
-| Ultrasónico | TRIG 18 / ECHO 19; muestra cada 60 ms; promedio móvil de 5 muestras; pulseIn máximo 30 ms |
+| Ultrasónico | TRIG 18 / ECHO 19; muestra cada 60 ms; mediana de 5 muestras; pulseIn máximo 30 ms |
 | OLED | SDA 21 / SCL 22; 0x3C; refresco 500 ms; fallo OLED no detiene medición |
 | LEDs | verde 25, amarillo 26, rojo 27 |
 | Buzzer/relé | 23; HIGH enciende, como en el código efectivo original |
 | MQTT | snapshot 1000 ms; cola de un único snapshot reciente; tarea de red aparte |
 
-La alarma local mantiene estados NORMAL, MEDIO≥4 cm, ALTO≥8 cm o velocidad≥2 cm/min y CRITICO≥10 cm o edge≥10 cm. La tendencia conserva el cálculo original cada 2 s y el recorte de bajadas a cero. La proyección edge es nivel + velocidad×3 min, sin atribuirle validez hidrológica.
+Actualización del 15 de octubre: la maqueta admite 12 cm de agua y usa una referencia sensor–fondo de 18 cm. Los estados corresponden al nivel medido: NORMAL<6 cm, MEDIO≥6 cm, ALTO≥8 cm y CRITICO≥10 cm, con histéresis de bajada de 0,3 cm. La mediana de cinco ecos filtra picos; la tendencia usa 30 s, conserva bajadas y separa la proyección a 3 min del estado medido. Ver `SITPA_06_PROTOTIPO_12CM.md` para alarmas, escala y pruebas.
 
 Al faltar eco: se conserva el último nivel/estado, se invalida la proyección y aparece fallo de sensor. Se mantiene una alarma alta/crítica previa y se añade señal de fallo para niveles menores. La polaridad eléctrica y la respuesta física aún requieren prueba. Revisar niveles eléctricos y alimentación de cada módulo antes de conectarlo.
 

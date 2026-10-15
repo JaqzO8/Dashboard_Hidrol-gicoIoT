@@ -4,6 +4,7 @@ COPY package.json package-lock.json ./
 COPY backend/package.json ./backend/package.json
 RUN npm ci --omit=dev --workspace backend
 COPY backend/src ./backend/src
+COPY shared ./shared
 RUN mkdir -p /app/backend/data && chown -R node:node /app
 USER node
 WORKDIR /app/backend

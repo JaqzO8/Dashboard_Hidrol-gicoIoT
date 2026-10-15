@@ -41,15 +41,19 @@ QueueHandle_t outgoing;
 char bootId[17];
 float samples[5];
 uint8_t sampleCount = 0, sampleIndex = 0;
-float previousLevel = NAN;
-uint32_t previousLevelAt = 0;
+TendenciaNivel trend;
+uint32_t trendAt = 0;
 
 void actualizarAlarma(uint32_t now) {
   const bool fault = !reading.levelValid || now - reading.levelAt > 3000;
   digitalWrite(LED_VERDE, !fault && reading.state == NORMAL);
   digitalWrite(LED_AMARILLO, !fault && reading.state == MEDIO);
   digitalWrite(LED_ROJO, reading.state >= ALTO || (fault && now % 1000 < 500));
-  const bool sound = reading.state == CRITICO || (reading.state == ALTO && now % 1000 < 600) || (fault && now % 2000 < 200);
+  const bool anticipated = !fault && isfinite(reading.prediction) && reading.rate >= 0.3f &&
+    ((reading.level < NIVEL_MEDIO_CM && reading.prediction >= NIVEL_MEDIO_CM) ||
+     (reading.level < NIVEL_ALTO_CM && reading.prediction >= NIVEL_ALTO_CM) ||
+     (reading.level < NIVEL_CRITICO_CM && reading.prediction >= NIVEL_CRITICO_CM));
+  const bool sound = reading.state == CRITICO || (reading.state == ALTO && now % 1000 < 600) || (reading.state == MEDIO && now % 4000 < 150) || (anticipated && now % 3000 < 120) || (fault && now % 2000 < 200);
   digitalWrite(PIN_BUZZER, sound ? BUZZER_ON : BUZZER_OFF);
 }
 void leerNivel(uint32_t now) {
@@ -58,25 +62,24 @@ void leerNivel(uint32_t now) {
   digitalWrite(PIN_TRIG, LOW);
   const unsigned long duration = pulseIn(PIN_ECHO, HIGH, 30000); // Espera acotada.
   const float distance = duration * 0.0343f / 2.0f;
-  if (!duration || distance <= 0 || distance >= 400) {
-    reading.levelValid = false; sampleCount = sampleIndex = 0; previousLevel = NAN;
+  if (!duration || distance < 2 || distance > DISTANCIA_SENSOR_FONDO_CM + 1.0f) {
+    reading.levelValid = false; sampleCount = sampleIndex = 0; trend.reset();
     reading.rate = reading.prediction = NAN;
     return; // Retener último nivel/estado; no fingir una lectura nueva.
   }
   samples[sampleIndex] = distance; sampleIndex = (sampleIndex + 1) % 5;
   if (sampleCount < 5) ++sampleCount;
-  float sum = 0;
-  for (uint8_t i = 0; i < sampleCount; ++i) sum += samples[i];
-  reading.distance = sum / sampleCount; reading.level = calcularNivel(reading.distance);
+  float ordered[5];
+  for (uint8_t i = 0; i < sampleCount; ++i) ordered[i] = samples[i];
+  for (uint8_t i = 0; i < sampleCount; ++i) for (uint8_t j=i+1;j<sampleCount;++j)
+    if (ordered[j]<ordered[i]) { float tmp=ordered[i]; ordered[i]=ordered[j]; ordered[j]=tmp; }
+  reading.distance = ordered[sampleCount/2]; reading.level = calcularNivel(reading.distance);
   reading.levelAt = now; reading.levelValid = true;
-  if (!isfinite(previousLevel)) {
-    previousLevel = reading.level; previousLevelAt = now; reading.rate = 0;
-  } else if (now - previousLevelAt >= TENDENCIA_MS) {
-    reading.rate = fmaxf(0, (reading.level - previousLevel) * 60000.0f / (now - previousLevelAt));
-    previousLevel = reading.level; previousLevelAt = now;
-  }
-  reading.prediction = reading.level + reading.rate * MINUTOS_PREDICCION;
-  reading.state = evaluarEstado(reading.level, reading.rate, reading.prediction);
+  if (now - trendAt >= TENDENCIA_MS) { trendAt = now; reading.rate = trend.update(reading.level, now); }
+  reading.prediction = isfinite(reading.rate) ? fmaxf(0, reading.level + reading.rate * MINUTOS_PREDICCION) : NAN;
+  EstadoRiesgo next = evaluarEstado(reading.level, reading.rate, reading.prediction);
+  const float exitThreshold = reading.state == CRITICO ? NIVEL_CRITICO_CM : reading.state == ALTO ? NIVEL_ALTO_CM : NIVEL_MEDIO_CM;
+  if (next >= reading.state || reading.level < exitThreshold - 0.3f) reading.state = next;
 }
 void mostrarOLED() {
   if (!oledReady) return;
@@ -104,6 +107,9 @@ void redTask(void*) {
   mqtt.setServer(MQTT_HOST, MQTT_PORT); mqtt.setBufferSize(2048);
   mqtt.setKeepAlive(15); mqtt.setSocketTimeout(2);
   WiFi.mode(WIFI_STA); WiFi.setAutoReconnect(true);
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) Serial.printf("WiFi motivo desconexion=%u\n",info.wifi_sta_disconnected.reason);
+  });
   String prefix = String("sitpa/v1/stations/") + STATION_ID;
   String statusTopic = prefix + "/status";
   String clientId = String("sitpa-") + STATION_ID + "-" + bootId;
@@ -116,7 +122,8 @@ void redTask(void*) {
     const int wifiStatus = WiFi.status();
     if (wifiStatus != previousWifiStatus) {
       previousWifiStatus = wifiStatus;
-      Serial.println(wifiStatus == WL_CONNECTED ? "WiFi conectado; comprobando hora y MQTT TLS." : "WiFi no conectado; alarma local continua.");
+      if (wifiStatus == WL_CONNECTED) Serial.println("WiFi conectado; comprobando hora y MQTT TLS.");
+      else Serial.printf("WiFi no conectado (estado %d); alarma local continua.\n",wifiStatus);
     }
     if (strlen(WIFI_SSID) && WiFi.status() != WL_CONNECTED && (!wifiAttempt || now - wifiAttempt >= 15000)) {
       wifiAttempt = now; WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -167,7 +174,7 @@ void redTask(void*) {
         if (sentState != int(snapshot.state)) {
           if (mqtt.publish((prefix + "/state").c_str(), payload, true)) {
             sentState = int(snapshot.state);
-            if (snapshot.state >= ALTO) mqtt.publish((prefix + "/alert").c_str(), payload, false);
+            if (snapshot.state >= MEDIO) mqtt.publish((prefix + "/alert").c_str(), payload, false);
           }
         }
       }
@@ -209,8 +216,8 @@ void loop() {
   }
   if (now - serialAt >= 2000) {
     serialAt = now;
-    Serial.printf("Nivel=%.2f cm | eco=%s | T=%.1f C | HR=%.1f %% | clima=%s | lluviaADC=%d | estado=%s\n",
-      reading.level, reading.levelValid ? "OK" : "FALLO", reading.temperature, reading.humidity,
+    Serial.printf("Nivel=%.2f cm | distancia=%.2f cm | velocidad=%.2f cm/min | eco=%s | T=%.1f C | HR=%.1f %% | clima=%s | lluviaADC=%d | estado=%s\n",
+      reading.level, reading.distance, reading.rate, reading.levelValid ? "OK" : "FALLO", reading.temperature, reading.humidity,
       reading.climateValid ? "OK" : "FALLO", reading.rainRaw, textoEstado(reading.state));
   }
   vTaskDelay(pdMS_TO_TICKS(1));

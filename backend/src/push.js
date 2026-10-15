@@ -1,5 +1,7 @@
 import webpush from 'web-push';
 import {createHash, randomBytes} from 'node:crypto';
+import { prototypeOutlook, prototypeMessage, LEVEL_NAMES } from '../../shared/prototype.js';
+import { environmentStates, environmentMessage } from '../../shared/environment.js';
 
 const hash = s => createHash('sha256').update(s).digest('hex');
 export function validSubscription(s) {
@@ -24,7 +26,9 @@ export class PushAlerts {
     this.subject=env.VAPID_SUBJECT;
     db.exec(`CREATE TABLE IF NOT EXISTS push_subscriptions(endpoint TEXT PRIMARY KEY, station TEXT NOT NULL, subscription TEXT NOT NULL, token TEXT NOT NULL, updated INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS push_states(station TEXT PRIMARY KEY, level INTEGER NOT NULL, sent INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS push_tests(endpoint TEXT PRIMARY KEY, sent INTEGER NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS push_tests(endpoint TEXT PRIMARY KEY, sent INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS push_events(station TEXT NOT NULL, kind TEXT NOT NULL, sent INTEGER NOT NULL, PRIMARY KEY(station,kind));
+      CREATE TABLE IF NOT EXISTS environment_states(station TEXT PRIMARY KEY, data TEXT NOT NULL);`);
   }
   subscribe(station,subscription,token) {
     if(!validSubscription(subscription)) throw new Error('invalid_subscription');
@@ -51,14 +55,30 @@ export class PushAlerts {
       {TTL:60,urgency:'high',timeout:10000,vapidDetails:{subject:this.subject,publicKey:this.publicKey,privateKey:this.privateKey}});
   }
   notify(r) {
-    if(!this.enabled || !pushEligible(r)) return;
+    if(!this.enabled || r.simulation || !r.deviceTimestamp || Date.now()-r.deviceTimestamp>3000 || r.deviceTimestamp-Date.now()>1000) return;
+    const savedEnvironment=this.db.prepare('SELECT data FROM environment_states WHERE station=?').get(r.stationId);
+    const previousEnvironment=savedEnvironment?JSON.parse(savedEnvironment.data):{};
+    const environment=environmentStates(r,previousEnvironment);
+    this.db.prepare('INSERT OR REPLACE INTO environment_states VALUES(?,?)').run(r.stationId,JSON.stringify(environment));
+    for(const [kind,state] of Object.entries(environment)) {
+      if(state!==previousEnvironment[kind] && (previousEnvironment[kind] || ['wet','high'].includes(state)))
+        this.dispatch(r,kind+'-'+state,'SITPA · Sensores del prototipo',environmentMessage(kind,state,r),300000);
+    }
+    if(!pushEligible(r)) return;
     const old=this.db.prepare('SELECT level,sent FROM push_states WHERE station=?').get(r.stationId);
-    if(r.stateCode<2) { this.db.prepare('INSERT OR REPLACE INTO push_states VALUES(?,?,?)').run(r.stationId,r.stateCode,old?.sent||0); return; }
-    if(old?.level===r.stateCode || (old && r.stateCode<=old.level) || (old && Date.now()-old.sent<60000 && r.stateCode!==3)) return;
     this.db.prepare('INSERT OR REPLACE INTO push_states VALUES(?,?,?)').run(r.stationId,r.stateCode,Date.now());
-    const payload=JSON.stringify({title:r.stateCode===3?'SITPA · Nivel muy alto':'SITPA · El nivel ha subido',
-      body:'Estación de prueba Huallaga: se alcanzó un umbral de aviso. Consulta la información actual y las indicaciones de las autoridades.',
-      tag:'sitpa-'+r.stationId, at:Date.now()});
+    if(old?.level!==r.stateCode && (old || r.stateCode>0)) {
+      this.dispatch(r, 'level-'+r.stateCode, `SITPA · ${LEVEL_NAMES[r.stateCode]} · Prototipo`, prototypeMessage(r.levelCm,r.stateCode), 60000);
+    }
+    const outlook=prototypeOutlook(r.levelCm,r.riseRateCmMin);
+    if(outlook?.approaching) this.dispatch(r,'forecast-'+outlook.nextCm,'SITPA · Aviso anticipado de prueba',
+      `Prototipo: ${r.levelCm.toFixed(1)} cm, subiendo. Si sigue así, podría llegar a ${outlook.nextCm} cm en aproximadamente ${Math.max(0.1,outlook.minutes).toFixed(1)} min. Estimación, no garantía.`,300000);
+  }
+  dispatch(r,kind,title,body,cooldown) {
+    const previous=this.db.prepare('SELECT sent FROM push_events WHERE station=? AND kind=?').get(r.stationId,kind);
+    if(previous && Date.now()-previous.sent<cooldown) return;
+    this.db.prepare('INSERT OR REPLACE INTO push_events VALUES(?,?,?)').run(r.stationId,kind,Date.now());
+    const payload=JSON.stringify({title,body,tag:'sitpa-'+r.stationId+'-'+kind,level:r.stateCode,at:Date.now()});
     const rows=this.db.prepare('SELECT endpoint,subscription FROM push_subscriptions WHERE station=?').all(r.stationId);
     const job=(async()=>{
       // Bounded batches; providers receive only subscriptions explicitly registered by visitors.

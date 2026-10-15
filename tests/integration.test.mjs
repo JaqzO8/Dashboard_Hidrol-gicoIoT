@@ -8,6 +8,7 @@ import { startLocalBroker } from "../tools/local-broker.mjs";
 import { createBackend } from "../backend/src/server.js";
 import { PredictionService } from "../backend/src/prediction.js";
 import { reading } from "./fixtures.mjs";
+import { PROTOTYPE } from '../shared/prototype.js';
 
 async function until(predicate, timeout = 5000) {
   const start = Date.now();
@@ -28,7 +29,7 @@ test("MQTT → SQLite → WebSocket/REST: cadencia, fallos, recuperación y Last
   await once(publisher, "connect");
   await until(async () => (await fetch(`${base}/healthz`)).ok);
   const publicConfig = await (await fetch(`${base}/api/v1/public-config`)).json();
-  assert.deepEqual(publicConfig, { stationId: "tingomaria-01", liveMs: 3000, staleMs: 10000 });
+  assert.deepEqual(publicConfig, { stationId: "tingomaria-01", liveMs: 3000, staleMs: 10000, prototype: PROTOTYPE });
   assert.equal((await fetch(`${base}/api/v1/public-config`, { method: "POST", body: JSON.stringify({ stationId: "changed" }) })).status, 405);
   assert.deepEqual(await (await fetch(`${base}/api/v1/public-config`)).json(), publicConfig);
   const messages = [];

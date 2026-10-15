@@ -4,6 +4,9 @@ import { PERU_RIVERS } from "./data/peru-rivers.js";
 import { RealtimeFeedController } from "./src/core/realtime-feed.js";
 import { fetchHistory, telemetryFreshness } from "./src/services/realtime.js";
 import { renderForecast } from "./src/ui/forecast.js";
+import { prototypeOutlook, prototypeMessage, LEVEL_NAMES } from './shared/prototype.js';
+import { environmentStates, environmentMessage } from './shared/environment.js';
+import { renderPrototypeChart } from './src/ui/prototype-chart.js';
 
 const DEFAULT_STATION = "tingomaria-01";
 const DEFAULT_RIVER = "Río Huallaga";
@@ -39,7 +42,7 @@ const RIVER_DETAILS = {
   "Río Suches": { region: "Titicaca", locality: "Puno y Bolivia" }
 };
 const STATUS = {
-  0: { label: "Normal", description: "Condiciones estables", className: "status-0", color: "#16A34A" },
+  0: { label: "Normal", description: "Por debajo del primer umbral de la maqueta", className: "status-0", color: "#16A34A" },
   1: { label: "Preventivo", description: "Requiere observación", className: "status-1", color: "#D97706" },
   2: { label: "Alto", description: "Nivel alto: active el protocolo preventivo", className: "status-2", color: "#DC2626" },
   3: { label: "Crítico", description: "Atención inmediata", className: "status-3", color: "#DC2626" }
@@ -50,6 +53,10 @@ let charts = [];
 let echarts, chartRevision = 0;
 let liveFeed;
 let alertAudioContext;
+let soundEnabled = false;
+const localAlerts = new Map();
+let lastObservedState = null;
+let previousEnvironment = {};
 let runtimeConfig = { apiBaseUrl: "", liveMs: 3000, staleMs: 10000 };
 let operationalStatus = {}, lastForecast = null, historyRows = null, historyCursor = null;
 let historyAbort;
@@ -58,6 +65,7 @@ const visibleRows = () => historyRows ?? feeds;
 export function deriveAlertLevel(status, level) {
   if (status >= 3 || (Number.isFinite(level) && level >= 0.10)) return "critical";
   if (status >= 2 || (Number.isFinite(level) && level >= 0.08)) return "warning";
+  if (status >= 1 || (Number.isFinite(level) && level >= 0.06)) return "attention";
   return null;
 }
 
@@ -240,7 +248,25 @@ function checkDataFreshness() {
   if (!connected || freshness !== "live" || !validSensor) renderForecast(null, latest, !configured ? "Estación pendiente de conexión y mediciones reales" : "Telemetría desactualizada, sensor inválido o servidor desconectado");
   else renderForecast(lastForecast, latest);
   updatePublicStatus(latest, connected, freshness, validSensor);
+  renderEnvironment(latest,connected && freshness==='live' && !latest?.simulation);
+  renderPrototypeChart(feeds,connected && freshness==='live' && validSensor && !latest?.simulation);
   if ((!connected || freshness !== "live") && $("alertBanner")) $("alertBanner").hidden = true;
+}
+
+function renderEnvironment(latest,live) {
+  if(!$("environmentReadings")) return;
+  if(!live || !latest) { $("environmentReadings").textContent="Sensores sin mediciones recientes. No se pueden confirmar lluvia, humedad ni temperatura."; return; }
+  const raw={quality:latest.quality,sensorAgeMs:latest.sensorAgeMs,rainDetected:latest.rain===1,rainRaw:latest.rainRaw,humidityPct:latest.hum,temperatureC:latest.temp};
+  const states=environmentStates(raw,previousEnvironment);
+  $("environmentReadings").textContent=`Lluvia: ${states.rain==='unknown'?'sin lectura válida':states.rain==='wet'?'placa mojada':'placa seca'} · Humedad: ${states.humidity==='unknown'?'sin lectura válida':fmt(latest.hum,1)+' %'} · Temperatura: ${states.temperature==='unknown'?'sin lectura válida':fmt(latest.temp,1)+' °C'}`;
+  $("environmentAlerts").textContent=Object.entries(states).filter(([kind,state])=>['unknown','wet','high'].includes(state)).map(([kind,state])=>environmentMessage(kind,state,raw)).join(' ') || 'Sin avisos ambientales activos.';
+  for(const [kind,state] of Object.entries(states)) {
+    if(state!==previousEnvironment[kind] && (previousEnvironment[kind] || ['wet','high'].includes(state))) {
+      const key=`env-${kind}-${state}`;
+      if(Date.now()-(localAlerts.get(key)||0)>300000) { localAlerts.set(key,Date.now()); soundAlert('attention'); toast(environmentMessage(kind,state,raw)); }
+    }
+  }
+  previousEnvironment=states;
 }
 
 function renderLimnimeter(level) {
@@ -260,15 +286,11 @@ function renderLimnimeter(level) {
   }
 }
 
-function alertsAreEnabled() {
-  return localStorage.getItem("sitpa.notifications") === "enabled" && typeof Notification !== "undefined" && Notification.permission === "granted";
-}
-
 function updateNotificationStatus() {
   const status=$("notificationStatus"), button=$("enableAlerts");
   if(!status || !button) return;
   const active=mobileAlertsActive();
-  status.textContent=active ? "Avisos activados para la estación Huallaga en este dispositivo. La estación todavía está en preparación." : "Requieren Internet y permiso del navegador. En iPhone, añade primero SITPA a la pantalla de inicio.";
+  status.textContent=active ? "Avisos de cada nivel y de subida anticipada activados para este prototipo. El sonido de notificaciones depende de los ajustes del dispositivo." : "Requieren Internet y permiso del navegador. En iPhone, añade primero SITPA a la pantalla de inicio.";
   button.hidden=active;
   if($("disableAlerts")) $("disableAlerts").hidden=!active;
   if($("testAlert")) $("testAlert").hidden=!active;
@@ -277,24 +299,34 @@ function updatePublicStatus(latest, connected, freshness, valid) {
   if(!$("publicStatus")) return;
   $("publicRiver").textContent=currentConfig().river;
   const usable=connected && freshness==="live" && valid && !latest?.simulation;
-  const messages=[
-    ["Sin cambios de aviso en esta medición", "La estación mide un nivel por debajo de sus límites de aviso.", "Mantente informado. Una medición no garantiza que no exista riesgo."],
-    ["El nivel requiere atención", "La estación ha alcanzado el primer nivel de atención.", "Consulta los avisos locales y mantente atento a los próximos cambios."],
-    ["Se detectó un nivel alto", "La estación ha alcanzado un nivel de aviso.", "Evita acercarte a la ribera y sigue las indicaciones de las autoridades locales."],
-    ["Se detectó un nivel muy alto", "La estación ha alcanzado su nivel de aviso más alto.", "Prioriza tu seguridad y sigue las indicaciones de las autoridades locales."]
-  ];
-  const message=usable ? messages[latest.status] : ["Aún no podemos conocer el estado del río", latest ? "Las últimas mediciones ya no son recientes o no se pueden confirmar." : "Estamos preparando la estación. Todavía no hay mediciones disponibles.", "Consulta los avisos de las autoridades de tu localidad. La ausencia de datos no significa que no exista riesgo."];
+  renderPrototype(latest,usable);
+  const message=usable ? [`${LEVEL_NAMES[latest.status]} · prototipo`, prototypeMessage(latest.level*100,latest.status), "Esta lectura pertenece a la maqueta de 12 cm; no describe el estado actual del río Huallaga."] : ["Sin una medición válida del prototipo", latest ? "Las últimas mediciones ya no son recientes o el sensor no puede confirmarlas." : "Esperando las mediciones del ESP32.", "Comprueba la conexión y la posición del sensor. La ausencia de datos no significa nivel normal."];
   $("publicStatus").dataset.state=usable?String(latest.status):"unknown";
   ["publicTitle","publicMeaning","publicAction"].forEach((id,i)=>$(id).textContent=message[i]);
 }
 
+function renderPrototype(latest,usable) {
+  if(!$("prototypeLevel")) return;
+  const cm=latest?.level===null ? null : latest?.level*100;
+  $("prototypeLevel").textContent=usable?`${fmt(cm,1)} cm`:"—";
+  $("prototypeFill").value=usable?Math.min(12,cm):0;
+  $("prototypeFill").setAttribute('aria-valuetext',usable?`${fmt(cm,1)} de 12 centímetros`:"Sin medición válida");
+  $("prototypeCapacity").textContent=usable?`${fmt(cm/12*100,0)} % de la altura máxima${cm>12?' · Capacidad superada':''}`:"Esperando datos válidos";
+  if($("scaleLevel")) $("scaleLevel").textContent=usable?`${fmt(cm,1)} m`:"—";
+  const outlook=usable?prototypeOutlook(cm,latest.speed):null;
+  $("prototypeTrend").textContent=outlook?`El agua está ${outlook.trend}. Cambio: ${fmt(latest.speed,1)} cm/min.`: "La tendencia necesita 30 segundos de lecturas válidas continuas.";
+  $("prototypePrediction").textContent=outlook?.approaching?`Si mantiene esta subida, podría llegar a ${outlook.nextCm} cm en unos ${fmt(outlook.minutes,1)} min.`:outlook?`Estimación a 3 min: ${fmt(outlook.projectedCm,1)} cm${outlook.projectedCm>12?' (superaría la capacidad)':''}.`:"Estimación todavía no disponible.";
+  if($("scalePrediction")) $("scalePrediction").textContent=outlook?`Equivalencia ilustrativa del nivel estimado: ${fmt(outlook.projectedCm,1)} m. El tiempo sigue siendo el de la maqueta, no del río.`:"Sin estimación válida para convertir a escala.";
+}
+
 function soundAlert(level) {
+  if(!soundEnabled || alertAudioContext?.state!=="running") return;
   try {
     alertAudioContext ||= new AudioContext();
     const oscillator = alertAudioContext.createOscillator();
     const gain = alertAudioContext.createGain();
     oscillator.type = "sine";
-    oscillator.frequency.value = level === "critical" ? 880 : 660;
+    oscillator.frequency.value = level === "critical" ? 880 : level === "warning" ? 660 : level === "attention" ? 520 : 440;
     gain.gain.setValueAtTime(0.0001, alertAudioContext.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.25, alertAudioContext.currentTime + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, alertAudioContext.currentTime + 0.65);
@@ -304,42 +336,34 @@ function soundAlert(level) {
   } catch { /* El aviso visual y la notificación siguen disponibles. */ }
 }
 
-async function sendBrowserNotification(title, body, tag) {
-  if (!alertsAreEnabled() || mobileAlertsActive()) return;
-  const registration = await navigator.serviceWorker?.ready.catch(() => null);
-  if (registration) {
-    await registration.showNotification(title, { body, icon: "sitpa-logo.jpg", tag, renotify: true });
-  } else {
-    new Notification(title, { body, icon: "sitpa-logo.jpg", tag });
-  }
-}
-
 function evaluateAndEmitAlert(reading) {
-  if (!liveFeed?.connected || telemetryFreshness(reading.date.getTime()) !== "live" || reading.quality.levelValid !== true) return;
+  if (!liveFeed?.connected || telemetryFreshness(reading.date.getTime()) !== "live" || reading.quality.levelValid !== true || reading.sensorAgeMs.level>3000 || reading.simulation) return;
   const alertLevel = deriveAlertLevel(reading.status, reading.level);
   const banner = $("alertBanner");
   if (!alertLevel) {
-    localStorage.removeItem("sitpa.lastAlert");
     if (banner) banner.hidden = true;
-    return;
   }
-
-  const critical = alertLevel === "critical";
-  const title = critical ? "ALERTA ROJA" : "ALERTA DE NIVEL ALTO";
-  const body = `${currentConfig().river}: nivel ${fmt(reading.level)} m · ${critical ? "Atención inmediata." : "Consulta los avisos de las autoridades locales."}`;
-  if (banner) {
+  const title = `${LEVEL_NAMES[reading.status]} · Prototipo SITPA`;
+  const body = prototypeMessage(reading.level*100,reading.status);
+  if (banner && alertLevel) {
     banner.hidden = false;
     banner.className = `alert-banner ${alertLevel}`;
     if ($("alertTitle")) $("alertTitle").textContent = title;
     if ($("alertMessage")) $("alertMessage").textContent = body;
   }
 
-  const alertKey = `${currentConfig().stationId}:${alertLevel}`;
-  if (alertsAreEnabled()) {
-    if (localStorage.getItem("sitpa.lastAlert") === alertKey) return;
-    localStorage.setItem("sitpa.lastAlert", alertKey);
-    soundAlert(alertLevel);
-    sendBrowserNotification(`SITPA · ${title}`, body, alertKey).catch(() => {});
+  const changed=lastObservedState!==reading.status;
+  const hadState=lastObservedState!==null;
+  lastObservedState=reading.status;
+  const alertKey = `${currentConfig().stationId}:level-${reading.status}`;
+  if(changed && (hadState || alertLevel) && Date.now()-(localAlerts.get(alertKey)||0)>60000) {
+    localAlerts.set(alertKey,Date.now()); soundAlert(alertLevel);
+  }
+  const outlook=prototypeOutlook(reading.level*100,reading.speed);
+  const forecastKey=`${currentConfig().stationId}:forecast-${outlook?.nextCm}`;
+  if(outlook?.approaching && Date.now()-(localAlerts.get(forecastKey)||0)>300000) {
+    localAlerts.set(forecastKey,Date.now()); soundAlert('attention');
+    toast(`Aviso anticipado de prueba: podría alcanzar ${outlook.nextCm} cm en ${fmt(outlook.minutes,1)} min si mantiene la subida.`);
   }
 }
 
@@ -369,8 +393,8 @@ function render() {
   }
   if ($("statusDescription")) $("statusDescription").textContent = state.description;
 
-  if ($("kpiLevel")) $("kpiLevel").textContent = `${fmt(last.level)} m`;
-  if ($("kpiLevelDelta")) $("kpiLevelDelta").textContent = delta === null ? "Sin comparación" : `${delta >= 0 ? "+" : ""}${fmt(delta)} m en última lectura`;
+  if ($("kpiLevel")) $("kpiLevel").textContent = `${fmt(last.level===null?null:last.level*100,1)} cm`;
+  if ($("kpiLevelDelta")) $("kpiLevelDelta").textContent = delta === null ? "Sin comparación" : `${delta >= 0 ? "+" : ""}${fmt(delta*100,1)} cm en última lectura`;
 
   if ($("kpiRain")) $("kpiRain").textContent = last.rain === 1 ? "Detectada" : last.rain === 0 ? "Sin lluvia" : "—";
   if ($("kpiRainState")) $("kpiRainState").textContent = last.rain !== null && last.rain > 0 ? "Evento detectado" : last.rain === 0 ? "Sin lluvia" : "Sin dato";
@@ -609,6 +633,16 @@ if (typeof document !== "undefined") {
   if ($("riverSearch")) $("riverSearch").addEventListener("input", (event) => renderRiverDirectory(event.target.value));
 
   if ($("enableAlerts")) $("enableAlerts").addEventListener("click", enableAlerts);
+  $("enableSound")?.addEventListener("click", async () => {
+    try {
+      alertAudioContext ||= new AudioContext();
+      await alertAudioContext.resume();
+      soundEnabled=!soundEnabled;
+      $("enableSound").textContent=soundEnabled?"Silenciar esta página":"Activar y probar sonido";
+      $("enableSound").setAttribute('aria-pressed',String(soundEnabled));
+      if(soundEnabled) soundAlert('attention');
+    } catch { toast('Este navegador no pudo activar el sonido.',true); }
+  });
   if ($("dismissAlert")) $("dismissAlert").addEventListener("click", () => { $("alertBanner").hidden = true; });
   updateNotificationStatus();
   if($("disableAlerts")) $("disableAlerts").addEventListener("click", async()=>{try{await disableMobileAlerts();updateNotificationStatus();}catch(e){toast(e.message,true);}});
