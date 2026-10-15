@@ -1,38 +1,45 @@
-# Estado de despliegue Azure — 15 de octubre de 2026
+# SITPA en Azure — 15 de octubre de 2026
 
-VM: `vm-sitpa-prd-01`, Ubuntu 24.04, usuario `sitpaadmin`, IP `57.156.38.0`.
+URL principal: https://sitpa-iot-jaqzo8.chilecentral.cloudapp.azure.com
 
-## Instalado y verificado
+La web, API REST, WebSocket seguro y broker MQTTS están desplegados en `vm-sitpa-prd-01` (`57.156.38.0`). La estación `tingomaria-01` todavía no tiene sensores conectados y debe mostrar «Sin telemetría».
 
-- Frontend de cinco páginas en `/var/www/sitpa`; vista preliminar HTTP en `http://57.156.38.0`.
-- Backend Node.js 24 en `/opt/sitpa`, gestionado por `sitpa-backend.service`, escucha en loopback:8787.
-- Mosquitto con cuentas independientes y ACL para estación y lector. Durante la puesta en servicio, escucha **solo loopback:8883**, con certificado de prueba confiado explícitamente por el backend. No se deshabilita la verificación TLS.
-- Disco administrado de 32 GiB montado por UUID en `/srv/sitpa`; SQLite en `/srv/sitpa/data`.
-- Copia SQLite consistente diaria a las 02:00 de Lima (07:00 UTC), conserva 30 copias en `/srv/sitpa/backups`. Primera copia e integridad verificadas.
-- Reinicio automático de servicios; recuperación del backend comprobada.
-- Healthcheck confirma SQLite y MQTT; estación física desconectada y sin mediciones.
-- 27 pruebas locales aprobadas; compilación frontend aprobada; instalación de dependencias de producción sin vulnerabilidades reportadas por npm.
+## Servicios y almacenamiento
 
-Las copias están en el mismo disco administrado: todavía falta respaldo externo para cubrir la pérdida de ese disco. Una etiqueta Azure `backup=daily-30d` por sí sola no configura Azure Backup.
+- Nginx sirve las cinco páginas desde `/var/www/sitpa`, redirige HTTP a HTTPS y publica `/api/`, `/healthz` y `/ws`.
+- Node.js 24 ejecuta `/opt/sitpa/backend` mediante `sitpa-backend.service`; puerto 8787 solo en loopback.
+- Mosquitto publica TLS en 8883. Cada cuenta tiene permisos separados: estación publica sus tópicos; backend lee telemetría. No hay acceso anónimo.
+- Certificado Let's Encrypt con renovación programada y copia automática al broker. La prueba `certbot renew --dry-run` pasó. El certificado inicial vence el 13 de enero de 2027.
+- Disco administrado de 32 GiB montado por UUID en `/srv/sitpa`. SQLite persiste en `/srv/sitpa/data`.
+- Backup SQLite consistente a las 02:00 de Lima, conservando 30 copias en `/srv/sitpa/backups`. Primera copia e integridad verificadas. Estas copias comparten disco con la base: falta respaldo externo para cubrir pérdida del disco; la etiqueta Azure no configura Azure Backup.
+- Configuración privada en `/etc/sitpa`, fuera del repositorio y con permisos restrictivos.
 
-## Pendiente para publicación definitiva
+## Verificación realizada
 
-La identidad administrada devuelve HTTP 403 al consultar la IP pública. SSH no concede permisos sobre el portal Azure. El nombre propuesto `sitpa-iot-jaqzo8.chilecentral.cloudapp.azure.com` todavía no resolvía al hacer esta entrega parcial.
+27 pruebas locales aprobadas y frontend compilado. Las cinco páginas, logo, API, healthcheck, WSS y restricciones CORS se comprobaron sobre HTTPS. La CA y contraseña del firmware permiten conectar a MQTTS desde el PC. Se comprobó rechazo de contraseña incorrecta, publicación en otra estación y entrega de mensajes a una cuenta sin lectura. Mosquitto puede aceptar la suscripción y filtrar la entrega; no se debe asumir que el SUBACK representa permiso de lectura.
 
-1. Asignar etiqueta DNS a `pip-sitpa-prd-01` y obtener el FQDN exacto que devuelve Azure (puede incorporar un identificador adicional).
-2. Cuando resuelva a `57.156.38.0`, ejecutar en la VM `sudo bash /tmp/azure-finish.sh <FQDN>`. El script obtiene certificado público, configura redirección HTTPS, sustituye el certificado de pruebas, expone MQTTS:8883 con autenticación y activa la URL del backend en el frontend.
-3. Ejecutar desde el repositorio `node tools/verify-production.mjs https://<FQDN>`; comprobar renovación con `sudo certbot renew --dry-run` y permisos MQTT desde fuera de la VM.
-4. Actualizar `public/sitpa-config.json` con la URL HTTPS verificada para GitHub Pages. Generar QR para la dirección final.
-5. Transferir únicamente la contraseña de la estación por SSH a archivos locales ignorados, actualizar host y CA del ESP32 conservando su Wi-Fi, adaptar el chequeo de hardware (actualmente exige broker LAN), y recompilar. No cargar hasta conectar la placa y confirmar el COM.
+No se insertaron mediciones ficticias. Se envió un payload inválido de comprobación de ACL, rechazado por el backend y registrado en auditoría.
 
-Los archivos con credenciales permanecen en `/etc/sitpa` con permisos restrictivos. La clave SSH privada no se almacena en el repositorio. No ejecutar otra vez el modo `--internal-mqtt` después de la publicación definitiva.
+El DNS público se verificó contra Google y Cloudflare. El resolvedor local conservaba temporalmente una respuesta negativa; eso puede impedir abrir el sitio desde algunas redes hasta que expire su caché.
 
-## Archivos reproducibles
+## ESP32
 
-- `tools/azure-bootstrap.sh`: prepara el disco dedicado e instala Node 24 verificando SHA-256.
-- `tools/azure-configure.py`: cuentas, Mosquitto, backend, renovación de certificados y copias.
-- `tools/azure-nginx.conf.template`: archivos estáticos, API, WebSocket y límites de solicitudes.
-- `tools/azure-finish.sh`: activación tras configurar DNS.
-- `tools/verify-production.mjs`: comprobación pública HTTPS, API, CORS y WSS.
+`tools/prepare-azure-hardware.mjs <ruta-clave-SSH>` importa solo la credencial de la estación por SSH, conserva el Wi-Fi existente y guarda el host público y la raíz ISRG Root X1 en ambos `secrets.h` ignorados. Conserva una copia privada de la configuración LAN. Los chequeos de hardware detectan el modo Azure mediante `.local-mqtt/azure.json`.
 
-Antes de reinstalar, copiar los scripts al servidor, revisar los destinos y respaldar configuraciones existentes. `azure-bootstrap.sh` fue utilizado en la VM vacía; no usarlo para adoptar discos con datos de otro sistema.
+Compilar: `powershell -ExecutionPolicy Bypass -File tools/compile-firmware.ps1 -UseLocalSecrets`.
+
+Comprobar: `npm run check:hardware`.
+
+Cargar únicamente con placa conectada y COM confirmado: `powershell -ExecutionPolicy Bypass -File tools/upload-firmware.ps1 -Port COMx`.
+
+La imagen configurada contiene credenciales: no publicarla. Quedan pendientes cableado, calibración, Wi-Fi físico, envío de mediciones y prueba de LEDs/buzzer con y sin Internet. Los pronósticos sin validación real continúan deshabilitados.
+
+## Operación
+
+- Estado: `sudo systemctl status sitpa-backend mosquitto nginx`.
+- Logs: `sudo journalctl -u sitpa-backend --since today`.
+- Backup manual: `sudo systemctl start sitpa-backup.service`.
+- Verificación pública: `node tools/verify-production.mjs https://sitpa-iot-jaqzo8.chilecentral.cloudapp.azure.com`.
+- QR: `public/sitpa-qr.png`.
+
+Los scripts `azure-bootstrap.sh`, `azure-configure.py`, `azure-nginx.conf.template` y `azure-finish.sh` documentan la instalación. Revisar destinos y respaldar antes de repetirlos; bootstrap se diseñó para el disco dedicado inicialmente vacío. No ejecutar `--internal-mqtt` en el servidor ya publicado.

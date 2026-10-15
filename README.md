@@ -2,9 +2,9 @@
 
 Sistema de apoyo a la prevención y toma de decisiones hidrológicas. ESP32 → MQTT → backend → SQLite / WebSocket → dashboard. La alarma física funciona independientemente de Internet.
 
-Página pública: **https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/**. GitHub Pages publica automáticamente las cinco páginas al actualizar `main`, después de las pruebas y la compilación. Los gráficos se descargan cuando hacen falta, reduciendo la carga inicial del resumen.
+Página principal: **https://sitpa-iot-jaqzo8.chilecentral.cloudapp.azure.com**. Azure aloja frontend, backend, SQLite persistente y broker MQTTS. GitHub Pages se conserva como dirección alternativa del frontend.
 
-La estación está pendiente de conexión. El broker y el backend están preparados en el PC; todavía no tienen un alojamiento público. Por eso la web publicada muestra «Sin telemetría», sin lecturas de demostración ni alertas activas. La activación requiere configurar un backend HTTPS/WSS y comprobar el ESP32 con sus sensores.
+La estación está pendiente de conexión física. La web se conecta por HTTPS/WSS y muestra «Sin telemetría» hasta recibir mediciones válidas. Consulte [Despliegue Azure](docs/SITPA_05_AZURE.md) para servicios, copias, firmware y verificaciones.
 
 El logo oficial es `public/sitpa-logo.jpg`, copia sin modificaciones de `SITPA_logo.jpg`. Se conservan las cinco páginas, sidebar, limnímetro, indicadores, gráficas, CSV y catálogo IGN de 969 ríos. ThingSpeak ya no participa en el firmware ni en la web.
 

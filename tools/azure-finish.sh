@@ -3,7 +3,11 @@ set -euo pipefail
 domain=${1:?Pass the DNS name shown by Azure}
 [[ "$domain" =~ ^[a-z0-9.-]+$ ]] || exit 1
 # Require DNS before requesting a certificate to avoid failed issuance attempts.
-getent ahostsv4 "$domain" | awk '{print $1}' | grep -qx '57.156.38.0'
+python3 - "$domain" <<'PY'
+import json,sys,urllib.request
+data=json.load(urllib.request.urlopen('https://dns.google/resolve?type=A&name='+sys.argv[1]))
+assert any(r.get('data')=='57.156.38.0' for r in data.get('Answer',[])), 'DNS does not point to this VM'
+PY
 sed "s/SITPA_DOMAIN/$domain/g" /tmp/azure-nginx.conf.template > /etc/nginx/sites-available/sitpa
 nginx -t
 systemctl reload nginx

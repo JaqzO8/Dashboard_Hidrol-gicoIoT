@@ -1,3 +1,7 @@
+# Despliegue actual
+
+El despliegue principal en Azure ya está activo. Véase [SITPA en Azure](SITPA_05_AZURE.md) para la configuración vigente. Las instrucciones siguientes describen las alternativas previas y el funcionamiento de GitHub Pages.
+
 # Despliegue SITPA
 
 Destino principal del frontend: **https://jaqzo8.github.io/Dashboard_Hidrol-gicoIoT/**, mediante GitHub Pages y el workflow `.github/workflows/pages.yml`. El repositorio público es https://github.com/JaqzO8/Dashboard_Hidrol-gicoIoT.
