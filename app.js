@@ -83,7 +83,9 @@ export function normalizeFeed(feed) {
     deviceTimestamp: feed.deviceTimestamp ?? null, level: meters(feed.levelCm), distance: feed.distanceCm ?? null,
     rain: aggregate ? null : typeof feed.rainDetected === "boolean" ? Number(feed.rainDetected) : null,
     rainRaw: feed.rainRaw ?? null, temp: feed.temperatureC ?? null, hum: feed.humidityPct ?? null,
-    speed: feed.riseRateCmMin ?? null, prediction: meters(feed.edgePredictionCm), status: feed.stateCode,
+    speed: Number.isFinite(feed.riseRateCmMin) ? Math.max(0, feed.riseRateCmMin) : null,
+    levelRate: Number.isFinite(feed.riseRateCmMin) ? feed.riseRateCmMin : null,
+    prediction: meters(feed.edgePredictionCm), status: feed.stateCode,
     quality: feed.quality ?? {}, sensorAgeMs: feed.sensorAgeMs ?? {}, simulation: feed.simulation === true,
     samples: feed.samples ?? null, min: meters(feed.levelMinCm), max: meters(feed.levelMaxCm), aggregate };
 }
@@ -335,8 +337,8 @@ function renderPrototype(latest,usable) {
   }
   $("prototypeCapacity").textContent=usable?`${fmt(cm/12*100,0)} % de la altura máxima${cm>12?' · Capacidad superada':''}`:"Esperando datos válidos";
   if($("scaleLevel")) $("scaleLevel").textContent=usable?`${fmt(cm,1)} m`:"—";
-  const outlook=usable?prototypeOutlook(cm,latest.speed):null;
-  $("prototypeTrend").textContent=outlook?`El agua está ${outlook.trend}. Cambio: ${fmt(latest.speed,1)} cm/min.`: "La tendencia necesita 30 segundos de lecturas válidas continuas.";
+  const outlook=usable?prototypeOutlook(cm,latest.levelRate):null;
+  $("prototypeTrend").textContent=outlook?`El agua está ${outlook.trend}. Velocidad de subida: ${fmt(latest.speed,1)} cm/min.`: "La tendencia necesita 30 segundos de lecturas válidas continuas.";
   $("prototypePrediction").textContent=outlook?.approaching?`Si mantiene esta subida, podría llegar a ${outlook.nextCm} cm en unos ${fmt(outlook.minutes,1)} min.`:outlook?`Estimación a 3 min: ${fmt(outlook.projectedCm,1)} cm${outlook.projectedCm>12?' (superaría la capacidad)':''}.`:"Estimación todavía no disponible.";
   if($("scalePrediction")) $("scalePrediction").textContent=outlook?`Equivalencia ilustrativa del nivel estimado: ${fmt(outlook.projectedCm,1)} m. El tiempo sigue siendo el de la maqueta, no del río.`:"Sin estimación válida para convertir a escala.";
 }
@@ -353,7 +355,7 @@ function evaluateAndEmitAlert(reading) {
   if (!liveFeed?.connected || telemetryFreshness(reading.date.getTime()) !== "live" || reading.quality.levelValid !== true || reading.sensorAgeMs.level>3000 || reading.simulation) return;
   const alertLevel = deriveAlertLevel(reading.status, reading.level);
   const banner = $("alertBanner");
-  const notice=onsiteAlert(reading.level*100,reading.status,reading.speed);
+  const notice=onsiteAlert(reading.level*100,reading.status,reading.levelRate);
   if (banner) {
     banner.hidden=!notice;
     if(notice) {
@@ -370,7 +372,7 @@ function evaluateAndEmitAlert(reading) {
   if(changed && (hadState || alertLevel) && Date.now()-(localAlerts.get(alertKey)||0)>60000) {
     localAlerts.set(alertKey,Date.now()); soundAlert(alertLevel);
   }
-  const outlook=prototypeOutlook(reading.level*100,reading.speed);
+  const outlook=prototypeOutlook(reading.level*100,reading.levelRate);
   const forecastKey=`${currentConfig().stationId}:forecast-${outlook?.nextCm}`;
   if(outlook?.approaching && Date.now()-(localAlerts.get(forecastKey)||0)>300000) {
     localAlerts.set(forecastKey,Date.now()); soundAlert('attention');
@@ -516,7 +518,7 @@ async function renderCharts() {
   if (revision !== chartRevision) return;
   chart("levelChart", { ...baseChartOptions(), series: [lineSeries("Nivel", visibleRows().map((f) => f.level), "#0284C7")] });
   chart("predictionChart", { ...baseChartOptions(), series: [lineSeries("Proyección edge +3 min (m)", visibleRows().map((f) => f.prediction), "#D97706")] });
-  chart("speedChart", { ...baseChartOptions(), series: [lineSeries("Velocidad (cm/min)", visibleRows().map((f) => f.speed), "#16A34A")] });
+  chart("speedChart", { ...baseChartOptions(), series: [lineSeries("Velocidad de subida (cm/min)", visibleRows().map((f) => f.speed), "#16A34A")] });
 
   const climate = baseChartOptions();
   climate.legend = { data: ["Temperatura", "Humedad"], textStyle: { color: "#64748B", fontSize: 10 }, top: 4 };
@@ -588,7 +590,7 @@ function toast(message, error = false) {
 
 function exportCsv() {
   const config = currentConfig();
-  const header = ["estacion", "rio", "server_timestamp_utc", "secuencia", "boot_id", "device_timestamp", "nivel_m", "distancia_cm", "lluvia_detectada", "lluvia_adc", "temperatura_c", "humedad_pct", "velocidad_cm_min", "edge_3min_m", "estado", "simulacion", "muestras", "min_m", "max_m"];
+  const header = ["estacion", "rio", "server_timestamp_utc", "secuencia", "boot_id", "device_timestamp", "nivel_m", "distancia_cm", "lluvia_detectada", "lluvia_adc", "temperatura_c", "humedad_pct", "velocidad_subida_cm_min", "edge_3min_m", "estado", "simulacion", "muestras", "min_m", "max_m"];
   const rows = visibleRows().map(f => [config.stationId, config.river, f.date.toISOString(), f.sequence, f.bootId, f.deviceTimestamp, f.level, f.distance, f.rain, f.rainRaw, f.temp, f.hum, f.speed, f.prediction, f.status, f.simulation, f.samples, f.min, f.max]);
   const csv = [header, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
   const a = document.createElement("a");

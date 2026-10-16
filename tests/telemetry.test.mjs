@@ -4,12 +4,30 @@ import { normalizeFeed, stats, mergeLatestFeeds, deriveAlertLevel, riverMeta } f
 import { telemetryFreshness, websocketUrl, validateApiBase } from "../src/services/realtime.js";
 import { RealtimeFeedController } from "../src/core/realtime-feed.js";
 import { PERU_RIVERS } from "../data/peru-rivers.js";
+import { prototypeOutlook, onsiteAlert } from "../shared/prototype.js";
 
 test("normalización convierte cm a m sin atribuir milímetros al FC-37", () => {
   const row = normalizeFeed({ id: 1, serverTimestamp: 1000, levelCm: 7.4234567, rainDetected: true, rainRaw: 2300, riseRateCmMin: 0.32, edgePredictionCm: 8.38 });
   assert.equal(row.level, 0.074234567); assert.equal(row.rain, 1); assert.equal(row.speed, 0.32);
   assert.ok(Math.abs(row.prediction - 0.0838) < 1e-12); assert.equal(row.rainRaw, 2300);
   assert.equal(normalizeFeed({ serverTimestamp: 1000, levelCm: null }).level, null);
+});
+test("la bajada muestra cero de subida y conserva la predicción descendente", () => {
+  const falling = normalizeFeed({ serverTimestamp: 1000, levelCm: 5, riseRateCmMin: -0.5 });
+  assert.equal(falling.speed, 0);
+  const outlook = prototypeOutlook(falling.level * 100, falling.levelRate);
+  assert.equal(outlook.trend, "bajando");
+  assert.equal(outlook.projectedCm, 3.5);
+  assert.equal(onsiteAlert(5, 0, falling.levelRate), null);
+  const rising = normalizeFeed({ serverTimestamp: 2000, levelCm: 5, riseRateCmMin: 0.5 });
+  assert.equal(rising.speed, 0.5);
+  assert.equal(onsiteAlert(5, 0, rising.levelRate).severity, "attention");
+  for (const rate of [null, undefined, NaN, Infinity]) {
+    const missing = normalizeFeed({ serverTimestamp: 3000, riseRateCmMin: rate });
+    assert.equal(missing.speed, null);
+    assert.equal(prototypeOutlook(5, missing.levelRate), null);
+  }
+  assert.equal(Object.is(normalizeFeed({ serverTimestamp: 4000, riseRateCmMin: -0 }).speed, -0), false);
 });
 test("estadísticas y catálogo originales", () => {
   assert.deepEqual(stats([1, null, 3, NaN]), { avg: 2, min: 1, max: 3 });

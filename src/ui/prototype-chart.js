@@ -6,7 +6,7 @@ export async function renderPrototypeChart(rows,live) {
   const {echarts}=await import('./charts.js'); if(rev!==revision) return;
   chart ||= echarts.init(element);
   const measured=rows.slice(-120).map(r=>[r.date.getTime(),r.quality.levelValid&&r.sensorAgeMs.level<=3000&&r.level!==null?r.level*100:null]);
-  const projection=live&&Number.isFinite(last?.speed)&&Number.isFinite(last?.level)?[[last.date.getTime(),last.level*100],[last.date.getTime()+180000,Math.max(0,last.level*100+last.speed*3)]]:[];
+  const projection=live&&Number.isFinite(last?.levelRate)&&Number.isFinite(last?.level)?[[last.date.getTime(),last.level*100],[last.date.getTime()+180000,Math.max(0,last.level*100+last.levelRate*3)]]:[];
   chart.setOption({animation:false,legend:{data:['Medido (cm)','Estimación (cm)']},grid:{top:55,left:45,right:20,bottom:45},
     tooltip:{trigger:'axis'},xAxis:{type:'time',axisLabel:{formatter:value=>new Date(value).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Lima'})}},
     yAxis:{type:'value',name:'cm · maqueta',min:0,max:value=>Math.max(12,Math.ceil(value.max))},
