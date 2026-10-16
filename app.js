@@ -1,4 +1,5 @@
 import { enableMobileAlerts, disableMobileAlerts, mobileAlertsActive, testMobileAlert } from "./src/services/mobile-alerts.js";
+import { createAlertSiren } from "./src/services/alert-siren.js";
 import "./src/ui/shell.js";
 import { PERU_RIVERS } from "./data/peru-rivers.js";
 import { RealtimeFeedController } from "./src/core/realtime-feed.js";
@@ -53,6 +54,7 @@ let charts = [];
 let echarts, chartRevision = 0;
 let liveFeed;
 let alertAudioContext;
+let alertSiren;
 let soundEnabled = false;
 const localAlerts = new Map();
 let lastObservedState = null;
@@ -342,17 +344,8 @@ function renderPrototype(latest,usable) {
 function soundAlert(level) {
   if(!soundEnabled || alertAudioContext?.state!=="running") return;
   try {
-    alertAudioContext ||= new AudioContext();
-    const oscillator = alertAudioContext.createOscillator();
-    const gain = alertAudioContext.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.value = level === "critical" ? 880 : level === "warning" ? 660 : level === "attention" ? 520 : 440;
-    gain.gain.setValueAtTime(0.0001, alertAudioContext.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.25, alertAudioContext.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, alertAudioContext.currentTime + 0.65);
-    oscillator.connect(gain).connect(alertAudioContext.destination);
-    oscillator.start();
-    oscillator.stop(alertAudioContext.currentTime + 0.7);
+    alertSiren ||= createAlertSiren(alertAudioContext);
+    alertSiren.play(level);
   } catch { /* El aviso visual y la notificación siguen disponibles. */ }
 }
 
@@ -659,6 +652,7 @@ if (typeof document !== "undefined") {
       $("enableSound").textContent=soundEnabled?"Silenciar esta página":"Activar y probar sonido";
       $("enableSound").setAttribute('aria-pressed',String(soundEnabled));
       if(soundEnabled) soundAlert('attention');
+      else alertSiren?.stop();
     } catch { toast('Este navegador no pudo activar el sonido.',true); }
   });
   if ($("dismissAlert")) $("dismissAlert").addEventListener("click", () => { $("alertBanner").hidden = true; });
