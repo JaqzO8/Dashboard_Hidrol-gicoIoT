@@ -29,4 +29,6 @@ La página es pública y funciona desde cualquier conexión a Internet. El QR de
 
 La última comprobación observa durante 45 segundos el flujo WebSocket del destino configurado en `public/sitpa-config.json` y guarda cadencia, calidad de los tres sensores y ausencia de simulación en `qa-artifacts/esp32-live-report.json`.
 
+Verificación física completada el 16 de octubre de 2026, 17:40 (Lima): 44 lecturas en 45 segundos, cadencia de 0,996 Hz, las 44 válidas para nivel, clima y lluvia y ninguna simulada. Se observaron niveles entre 1,18 y 9,25 cm y estados normal, atención y alto. La última muestra estable incluyó velocidad 0 cm/min y estimación a tres minutos de 1,50 cm. Se confirmó la visualización en el navegador de AWS.
+
 Las alertas dentro de la página siguen disponibles. El sonido requiere interacción con la página y las notificaciones del sistema requieren permiso del navegador.
