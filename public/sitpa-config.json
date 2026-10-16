@@ -1,5 +1,5 @@
 {
-  "apiBaseUrl": "https://sitpa-iot-jaqzo8.chilecentral.cloudapp.azure.com",
+  "apiBaseUrl": "https://sitpa-54-167-108-112.sslip.io",
   "stationId": "tingomaria-01",
   "liveMs": 3000,
   "staleMs": 10000

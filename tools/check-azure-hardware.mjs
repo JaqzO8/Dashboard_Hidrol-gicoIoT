@@ -4,12 +4,12 @@ import {createHash,X509Certificate} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {root,localDirectory,readFirmwareSecrets} from './hardware-config.mjs';
 
-export function checkAzureHardware(configurationOnly=false) {
+export function checkAzureHardware(configurationOnly=false, provider='azure') {
   const path=resolve(root,'iot_code/secrets.h'), source=readFileSync(path,'utf8');
-  const config=JSON.parse(readFileSync(resolve(localDirectory,'azure.json'),'utf8'));
+  const config=JSON.parse(readFileSync(resolve(localDirectory,`${provider}.json`),'utf8'));
   const secrets=readFirmwareSecrets();
   const sha=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
-  assert.equal(sha(path),config.secretsSha256,'Configuración modificada después de preparar Azure');
+  assert.equal(sha(path),config.secretsSha256,'Configuración modificada después de preparar '+provider);
   assert.equal(secrets.MQTT_HOST,config.host);
   assert.equal(secrets.MQTT_USERNAME,config.stationId);
   assert(secrets.WIFI_SSID && secrets.WIFI_PASSWORD.length>=8);
@@ -27,6 +27,6 @@ export function checkAzureHardware(configurationOnly=false) {
     assert.equal(manifest.logicSha256.toLowerCase(),sha(resolve(root,'iot_code/edge_logic.h')));
     assert(existsSync(resolve(output,'09_Codigo_Final_Proyecto.ino.bin')));
   }
-  console.log('OK · Configuración Azure, CA, Wi-Fi y archivos sincronizados'+(configurationOnly?'':'; firmware compilado vigente'));
+  console.log('OK · Configuración '+provider+', CA, Wi-Fi y archivos sincronizados'+(configurationOnly?'':'; firmware compilado vigente'));
   console.log('Pendiente: conectar placa, confirmar COM y verificar sensores físicamente.');
 }

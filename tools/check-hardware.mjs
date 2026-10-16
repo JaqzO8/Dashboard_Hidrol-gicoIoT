@@ -5,9 +5,10 @@ import { parseEnv } from "node:util";
 import { resolve } from "node:path";
 import { root, localDirectory, stationId, readFirmwareSecrets, verifyPassword } from "./hardware-config.mjs";
 
-if (existsSync(resolve(localDirectory, 'azure.json'))) {
-  try { (await import('./check-azure-hardware.mjs')).checkAzureHardware(process.argv.includes('--configuration-only')); }
-  catch (error) { console.error('FALTA · Preparación Azure: ' + error.message); process.exit(1); }
+if (existsSync(resolve(localDirectory, 'aws.json')) || existsSync(resolve(localDirectory, 'azure.json'))) {
+  const provider = existsSync(resolve(localDirectory, 'aws.json')) ? 'aws' : 'azure';
+  try { (await import('./check-azure-hardware.mjs')).checkAzureHardware(process.argv.includes('--configuration-only'), provider); }
+  catch (error) { console.error('FALTA · Preparación '+provider+': ' + error.message); process.exit(1); }
   process.exit(0);
 }
 
