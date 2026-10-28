@@ -3,7 +3,7 @@ const pages = [
   ["#prediccion", "02", "Tendencia y estimación"],
   ["#ambiente", "03", "Lluvia y clima"],
   ["#avisos", "04", "Avisos"],
-  ["#registros", "05", "Mediciones anteriores"]
+  ["#registros", "05", "Mediciones y demo"]
 ];
 
 if (typeof document !== "undefined") {

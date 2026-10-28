@@ -1,6 +1,7 @@
 import { enableMobileAlerts, disableMobileAlerts, mobileAlertsActive, testMobileAlert } from "./src/services/mobile-alerts.js";
 import { createAlertSiren } from "./src/services/alert-siren.js";
 import "./src/ui/shell.js";
+import "./src/ui/measurements-demo.js";
 import { PERU_RIVERS } from "./data/peru-rivers.js";
 import { RealtimeFeedController } from "./src/core/realtime-feed.js";
 import { fetchHistory, telemetryFreshness } from "./src/services/realtime.js";
@@ -622,6 +623,9 @@ async function loadHistory(older = false) {
 
 function updateLiveState(state) {
   if ($("refreshStatus")) $("refreshStatus").textContent = state === "connected" ? "Información conectada" : state === "unconfigured" ? "Estación pendiente de conexión" : state === "connecting" ? "Conectando al servidor…" : "Reconexión automática";
+  if (!visibleRows().length && $("recordsBody")) {
+    $("recordsBody").innerHTML = `<tr><td colspan="9" class="empty">${state === "connecting" ? "Conectando con el servidor de mediciones…" : state === "connected" ? "No hay lecturas disponibles para esta estación." : "Sin conexión al servidor de mediciones. No se pueden verificar datos reales. La demo ilustrativa está disponible arriba."}</td></tr>`;
+  }
   checkDataFreshness();
 }
 function createLiveFeed() {
