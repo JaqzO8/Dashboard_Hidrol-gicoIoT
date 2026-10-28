@@ -1,5 +1,6 @@
 {
-  "apiBaseUrl": "https://sitpa-54-167-108-112.sslip.io",
+  "transport": "serial",
+  "apiBaseUrl": "",
   "stationId": "tingomaria-01",
   "liveMs": 3000,
   "staleMs": 10000

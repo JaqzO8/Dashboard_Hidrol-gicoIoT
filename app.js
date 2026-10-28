@@ -2,6 +2,7 @@ import { enableMobileAlerts, disableMobileAlerts, mobileAlertsActive, testMobile
 import { createAlertSiren } from "./src/services/alert-siren.js";
 import "./src/ui/shell.js";
 import "./src/ui/measurements-demo.js";
+import { SerialFeedController } from './src/services/serial-feed.js';
 import { PERU_RIVERS } from "./data/peru-rivers.js";
 import { RealtimeFeedController } from "./src/core/realtime-feed.js";
 import { fetchHistory, telemetryFreshness } from "./src/services/realtime.js";
@@ -60,7 +61,7 @@ let soundEnabled = false;
 const localAlerts = new Map();
 let lastObservedState = null;
 let previousEnvironment = {};
-let runtimeConfig = { apiBaseUrl: "", liveMs: 3000, staleMs: 10000 };
+let runtimeConfig = { transport: 'serial', apiBaseUrl: "", liveMs: 3000, staleMs: 10000 };
 let operationalStatus = {}, lastForecast = null, historyRows = null, historyCursor = null;
 let historyAbort;
 const visibleRows = () => historyRows ?? feeds;
@@ -125,6 +126,7 @@ const currentConfig = () => {
 };
 
 async function loadData(showFeedback = false) {
+  if (runtimeConfig.transport === 'serial') { liveFeed?.refresh(); return; }
   const { stationId, river } = currentConfig();
   historyAbort?.abort(); historyRows = null; historyCursor = null; feeds = []; lastForecast = null; operationalStatus = {}; renderForecast(null);
   if ($("alertBanner")) $("alertBanner").hidden = true;
@@ -262,6 +264,15 @@ function checkDataFreshness() {
   else renderForecast(lastForecast, latest);
   updatePublicStatus(latest, connected, freshness, validSensor);
   renderEnvironment(latest,connected && freshness==='live' && !latest?.simulation);
+  if (runtimeConfig.transport === 'serial') {
+    if ($('connectionNotice')) $('connectionNotice').hidden = true;
+    if ($('serverState')) $('serverState').textContent = 'CONEXIÓN DIRECTA USB · SIN SERVIDOR';
+    if ($('stationState')) $('stationState').textContent = connected ? 'PUERTO USB ABIERTO' : 'ESP32 SIN CONECTAR';
+    if ($('serialStatus')) $('serialStatus').textContent = !navigator.serial ? 'Este navegador no ofrece acceso USB. Abre el enlace en Chrome o Edge de escritorio.' : liveFeed?.opening ? 'Selecciona el puerto del ESP32 en el diálogo del navegador.' : !connected ? 'Conecta la placa por USB y selecciona su puerto.' : freshness === 'live' ? 'Recibiendo mediciones físicas por USB · actualización cada 2 segundos.' : 'USB abierto; esperando una lectura válida del ESP32.';
+    if ($('serialConnect')) $('serialConnect').disabled = connected || liveFeed?.opening;
+    if ($('serialDisconnect')) $('serialDisconnect').disabled = !connected;
+    setConnectionState(connected && freshness === 'live' ? 'online' : 'offline', connected && freshness === 'live' ? 'Sensores en vivo · USB' : connected ? 'Esperando lecturas USB' : 'Conecta el ESP32 por USB');
+  }
   renderPrototypeChart(feeds,connected && freshness==='live' && validSensor && !latest?.simulation);
     if ((!connected || freshness !== "live" || !validSensor) && $("alertBanner")) $("alertBanner").hidden = true;
 }
@@ -559,6 +570,10 @@ async function renderCharts() {
 
 function renderTable() {
   if (!$("recordsBody")) return;
+  if (!visibleRows().length && runtimeConfig.transport === 'serial') {
+    $('recordsBody').innerHTML = '<tr><td colspan="9" class="empty">Sin lecturas de esta sesión. Conecta el ESP32 por USB.</td></tr>';
+    return;
+  }
   $("recordsBody").innerHTML = [...visibleRows()]
     .reverse()
     .map((row) => {
@@ -592,6 +607,7 @@ function toast(message, error = false) {
 function exportCsv() {
   const config = currentConfig();
   const header = ["estacion", "rio", "server_timestamp_utc", "secuencia", "boot_id", "device_timestamp", "nivel_m", "distancia_cm", "lluvia_detectada", "lluvia_adc", "temperatura_c", "humedad_pct", "velocidad_subida_cm_min", "edge_3min_m", "estado", "simulacion", "muestras", "min_m", "max_m"];
+  if (runtimeConfig.transport === 'serial') { header[2] = 'recepcion_usb_utc'; header[3] = 'lectura_sesion'; }
   const rows = visibleRows().map(f => [config.stationId, config.river, f.date.toISOString(), f.sequence, f.bootId, f.deviceTimestamp, f.level, f.distance, f.rain, f.rainRaw, f.temp, f.hum, f.speed, f.prediction, f.status, f.simulation, f.samples, f.min, f.max]);
   const csv = [header, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
   const a = document.createElement("a");
@@ -622,6 +638,10 @@ async function loadHistory(older = false) {
 }
 
 function updateLiveState(state) {
+  if (runtimeConfig.transport === 'serial') {
+    if ($('refreshStatus')) $('refreshStatus').textContent = state === 'connected' ? 'USB conectado' : 'Conexión USB disponible';
+    renderTable(); checkDataFreshness(); return;
+  }
   if ($("refreshStatus")) $("refreshStatus").textContent = state === "connected" ? "Información conectada" : state === "unconfigured" ? "Estación pendiente de conexión" : state === "connecting" ? "Conectando al servidor…" : "Reconexión automática";
   if (!visibleRows().length && $("recordsBody")) {
     $("recordsBody").innerHTML = `<tr><td colspan="9" class="empty">${state === "connecting" ? "Conectando con el servidor de mediciones…" : state === "connected" ? "No hay lecturas disponibles para esta estación." : "Sin conexión al servidor de mediciones. No se pueden verificar datos reales. La demo ilustrativa está disponible arriba."}</td></tr>`;
@@ -629,6 +649,15 @@ function updateLiveState(state) {
   checkDataFreshness();
 }
 function createLiveFeed() {
+  if (runtimeConfig.transport === 'serial') return new SerialFeedController({
+    onLatest(raw) {
+      const latest = normalizeFeed(raw);
+      feeds = mergeLatestFeeds(feeds, latest, currentConfig().results);
+      operationalStatus = { stationOnline: true }; render();
+    },
+    onState: updateLiveState,
+    onError: error => toast(error.message, true)
+  });
   return new RealtimeFeedController({
     getConfig: currentConfig,
     onSnapshot(payload) { feeds = payload.rows.map(normalizeFeed); if (feeds.length) render(); else renderUnavailableRiver(); },
@@ -643,6 +672,10 @@ function createLiveFeed() {
 if (typeof document !== "undefined") {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   liveFeed = createLiveFeed();
+  $('serialConnect')?.addEventListener('click', async () => {
+    try { await liveFeed.connect(); } catch(error) { toast(error.message, true); }
+  });
+  $('serialDisconnect')?.addEventListener('click', () => liveFeed.stop());
   initializeRiverCatalog();
   if ($("rangeSelect")) $("rangeSelect").addEventListener("change", () => loadData());
   if ($("downloadCsv")) $("downloadCsv").addEventListener("click", exportCsv);
@@ -674,6 +707,15 @@ if (typeof document !== "undefined") {
   window.addEventListener("pagehide", () => { clearInterval(freshnessTimer); liveFeed.stop(); historyAbort?.abort(); });
   fetch("sitpa-config.json", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(async config => {
     runtimeConfig = { ...runtimeConfig, ...config };
+    if (runtimeConfig.transport === 'serial') {
+      sessionStorage.setItem('selectedRiver', DEFAULT_RIVER);
+      for (const id of ['historyFrom','historyTo','historyResolution','historyLoad','historyOlder','enableAlerts','testAlert','disableAlerts','riverSelect']) if ($(id)) $(id).disabled = true;
+      if ($('historyStatus')) $('historyStatus').textContent = 'Sesión USB · últimas lecturas en memoria. Exporta el CSV antes de cerrar o recargar.';
+      if ($('notificationStatus')) $('notificationStatus').textContent = 'Los avisos visuales y el sonido funcionan con esta página abierta y el USB conectado. Sin notificaciones remotas.';
+      if ($('enableAlerts')) $('enableAlerts').hidden = true;
+      return;
+    }
+    liveFeed = createLiveFeed();
     if (!runtimeConfig.apiBaseUrl && ["localhost", "127.0.0.1"].includes(location.hostname)) runtimeConfig.apiBaseUrl = "http://127.0.0.1:8787";
     // Configuración de solo lectura administrada en el servidor; no hay overrides del visitante.
     const response = await fetch(`${runtimeConfig.apiBaseUrl}/api/v1/public-config`, { cache: "no-store", signal: AbortSignal.timeout(5000) });

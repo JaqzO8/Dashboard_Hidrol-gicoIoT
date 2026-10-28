@@ -1,5 +1,7 @@
 # SITPA en AWS
 
+> Retirado el 28 de octubre de 2026: el propietario confirmó que la instancia ya no existe. La web usa GitHub Pages y conexión USB directa al ESP32. La configuración pública no utiliza este servidor. El contenido siguiente se conserva únicamente como documentación histórica.
+
 Despliegue del 16 de octubre de 2026:
 
 - Web: https://sitpa-54-167-108-112.sslip.io/

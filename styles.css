@@ -1324,3 +1324,8 @@ button,.primary-button,.secondary-button { min-height:44px; }
 #measurementsDemo > p, .demo-sanitation p { line-height:1.65; }
 #demoRecords summary { cursor:pointer; font-weight:700; padding:14px 0; }
 @media(max-width:700px) { .demo-measurements-grid { grid-template-columns:1fr; } .demo-measurement-card { padding:16px; } #measurementsDemo .card-head { flex-wrap:wrap; gap:12px; } }
+#conexion-usb .mobile-actions { display:flex; flex-direction:row; flex-wrap:wrap; gap:12px; margin:18px 0; }
+#conexion-usb button { width:auto; padding:12px 20px; border-radius:10px; font-weight:700; }
+#conexion-usb #serialConnect { background:#0369a1; color:#fff; border:1px solid #0369a1; }
+#conexion-usb #serialDisconnect { background:#fff; color:#334155; border:1px solid #94a3b8; }
+#conexion-usb button:disabled { opacity:.5; cursor:not-allowed; }

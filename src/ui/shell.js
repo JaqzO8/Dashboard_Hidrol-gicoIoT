@@ -1,4 +1,5 @@
 const pages = [
+  ["#conexion-usb", "USB", "Conectar sensores"],
   ["#nivel", "01", "Nivel del agua"],
   ["#prediccion", "02", "Tendencia y estimación"],
   ["#ambiente", "03", "Lluvia y clima"],
